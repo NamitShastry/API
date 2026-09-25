@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AeroIndex / FareOS — Aviation Intelligence Platform</title>
+  <style>
+    :root {
+      --bg: #F8F9FA;
+      --card-bg: #FFFFFF;
+      --border: #E5E7EB;
+      --text-main: #0F172A;
+      --text-muted: #64748B;
+      --emerald-ink: #065F46;
+      --emerald-bg: #ECFDF5;
+      --emerald-border: #A7F3D0;
+      --btn-bg: #0F172A;
+      --btn-text: #FFFFFF;
+      --btn-hover: #1E293B;
+    }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .entry-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2.5rem;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 10px 15px -3px rgba(0, 0, 0, 0.03);
+      text-align: center;
+    }
+    .brand-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-main);
+      margin-bottom: 0.35rem;
+    }
+    .subtitle {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--emerald-ink);
+      background: var(--emerald-bg);
+      border: 1px solid var(--emerald-border);
+      padding: 0.3rem 0.75rem;
+      border-radius: 9999px;
+      margin-bottom: 2rem;
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      background-color: #10B981;
+      border-radius: 50%;
+    }
+    .open-btn {
+      display: inline-block;
+      width: 100%;
+      background: var(--btn-bg);
+      color: var(--btn-text);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 600;
+      padding: 0.75rem 1.25rem;
+      border-radius: 8px;
+      transition: background 0.15s ease;
+    }
+    .open-btn:hover {
+      background: var(--btn-hover);
+    }
+  </style>
+</head>
+<body>
+  <main class="entry-card">
+    <h1 class="brand-title">AeroIndex / FareOS</h1>
+    <p class="subtitle">Aviation Intelligence Platform</p>
+    <div>
+      <span class="status-badge">
+        <span class="status-dot"></span>
+        System Online
+      </span>
+    </div>
+    <a href="/app" class="open-btn">Open Application</a>
+  </main>
+</body>
+</html>

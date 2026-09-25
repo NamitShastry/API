@@ -815,9 +815,18 @@ const server = http.createServer((req, res) => {
     return handleApiRequest(req, res, pathname, query);
   }
 
+  // Root entry page
+  if (pathname === '/') {
+    const rootIndexPath = path.join(__dirname, '..', '..', 'index.html');
+    if (fs.existsSync(rootIndexPath)) {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end(fs.readFileSync(rootIndexPath));
+    }
+  }
+
   // Static files & SPA routing
   let reqPath = pathname;
-  if (reqPath === '/' || reqPath === '/app' || reqPath.startsWith('/app/')) {
+  if (reqPath === '/app' || reqPath.startsWith('/app/')) {
     reqPath = '/index.html';
   }
 

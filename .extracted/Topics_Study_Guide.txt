@@ -1,0 +1,188 @@
+APIx Hackathon Study Guide (SIH26056)
+Real-Time Airfare Price Index — What Each Sub-Team Needs to Learn
+0. Recommendation on Data Collection (read this first)
+Real scraping of IndiGo/MakeMyTrip/etc. involves anti-bot systems, CAPTCHAs, and fragile JS-heavy
+pages — hard even for experienced engineers, and risky to attempt live in a short hackathon.
+Recommended Path:
+Primary plan: Build a mock data generator that simulates realistic fares (random walk pricing
+with lead-time curves, day-of-week effects, occasional spikes) instead of live scraping. This lets
+you build and demo the entire pipeline (cleaning → index → dashboard) reliably.
+Stretch goal: Attempt one simple real scrape (e.g., a single OTA search page, using Playwright) to
+prove the concept works, and fall back to mock data if it breaks.
+Judges usually care more about the pipeline, index methodology, and dashboard than raw
+scraping toughness — so don't let scraping eat your whole week.
+Keep this in mind as you assign study time below: the backend team should split time between "real
+scraping basics" and "mock data + pipeline," not spend it all on scraping.
+1. Shared Foundations (everyone, ~1–2 days)
+These are needed by all three teams before splitting off.
+ Git & GitHub: clone, branch, commit, pull request, resolving merge conflicts
+ JSON: reading/writing, nesting, how APIs exchange data
+ REST API concepts: what an endpoint is, GET vs POST, status codes, request/response cycle
+ Basic command line: navigating folders, running scripts, installing packages (pip/npm)
+ How the whole system fits together (re-read the problem statement's "System Overview"
+section as a team, and sketch the architecture diagram on a whiteboard)
+2. Frontend Track
+Goal: Build the dashboard (trend graphs, heatmaps by route, lead-time elasticity charts) that talks to
+the backend API.
+Order
+Topic
+Why
+1
+HTML/CSS basics
+Page structure & layout
+2
+JavaScript fundamentals (variables, functions,
+arrays/objects, fetch , async/await)
+Needed before React makes sense
+3
+React basics (components, props, state, 
+useEffect )
+Building the dashboard UI
+4
+Fetching data from a REST API in React
+Connecting to backend's 
+/api/index and /api/prices
+endpoints
+5
+A charting library: Chart.js or Recharts
+Line charts (APIx trend), bar charts
+(route comparisons)
+6
+Heatmap visualization (e.g. a simple grid
+component, or a library like react-heatmap-
+grid )
+Route-by-route price heatmap
+7
+Basic responsive layout / dashboard UI patterns
+Multiple charts on one screen, filters
+(route, date range)
+8
+(stretch)
+Deployment basics (Vercel/Netlify)
+Getting the demo live
+Mini-project to practice: Build a small React page that fetches a public JSON API and plots it as a line
+chart before touching the real backend.
+3. Backend Track
+Goal: Data collection (real or mock), cleaning pipeline, index computation, and the REST API that serves
+it all.
+Order
+Topic
+Why
+1
+Python fundamentals (functions, loops, dictionaries, list
+comprehensions)
+Base language for everything
+below
+2
+Working with JSON/CSV files in Python
+Handling scraped/mock data
+3
+Pandas basics (DataFrames, filtering, groupby,
+merging)
+Data cleaning: dedup, outlier
+removal, missing values
+4
+Writing a mock data generator (randomized fares with
+lead-time & seasonal patterns)
+Your safety-net data source
+Order
+Topic
+Why
+5
+Headless browser scraping basics: Playwright (or
+Selenium) — page navigation, filling forms, waiting for
+elements, extracting text/JSON
+Stretch goal: real scraping of
+one OTA/airline page
+6
+Basic scraping ethics/etiquette: robots.txt , rate-
+limiting, user-agents
+Required even for the stretch
+goal
+7
+Index number theory: what a weighted price index is,
+Laspeyres index formula, applying weights (here: DGCA
+route weights)
+Core of the APIx calculation —
+this is math + a bit of research,
+not code-heavy
+8
+Flask or FastAPI basics: creating routes, returning
+JSON, query parameters
+Building /api/index and 
+/api/prices
+9
+Task scheduling: cron or a simple Python scheduler
+(e.g. schedule library)
+Simulating "daily" data
+collection during backtest
+10
+(stretch)
+Basic unit testing with pytest
+Judges like to see tests
+Mini-project to practice: Generate 30 days of mock fare data for 3 routes, load it into pandas, compute
+a simple weighted daily average, and expose it via a one-endpoint Flask API.
+4. Database Track
+Goal: Design and manage the schema that stores raw fares, cleaned fares, and computed index values;
+connect it to the backend.
+Order
+Topic
+Why
+1
+Relational database basics (tables, rows, columns,
+primary/foreign keys)
+Foundation
+2
+SQL fundamentals: SELECT , WHERE , JOIN , GROUP BY , 
+ORDER BY
+Querying fares and
+building aggregates
+3
+PostgreSQL (or MySQL) setup — install locally or use a free
+cloud instance (e.g. Supabase, Railway, Neon)
+Actual database engine
+to use
+4
+Schema design for this project specifically:
+See suggested schema
+below
+5
+Indexes & basic query performance (e.g. index on date , 
+route )
+Dashboard queries need
+to be fast
+6
+Connecting Python to Postgres: SQLAlchemy (ORM) or 
+psycopg2 (raw driver)
+Backend reads/writes to
+DB
+Order
+Topic
+Why
+7
+Basic time-series storage patterns (one row per
+route+date+lead-time)
+Matches how fares/index
+data naturally look
+8
+(stretch)
+Views or materialized views for common aggregates (e.g. daily
+index)
+Speeds up dashboard/API
+Suggested schema to study/design together with backend team:
+raw_fares : scrape_timestamp, origin, destination, carrier, flight_date, advance_days,
+base_fare, taxes, total_fare, source
+cleaned_fares : same fields, deduplicated/validated, flagged outliers removed
+route_weights : origin, destination, weight (from DGCA data)
+apix_daily : date, index_value, route (nullable for "overall")
+Mini-project to practice: Create these 4 tables locally, insert some sample rows by hand, and write a
+SQL query that computes a simple weighted average price per day.
+5. Cross-Team Topics Worth a Group Session
+CPI / index number methodology (30–45 min group study) — read up on how CPI sub-indices work
+in general; you don't need to be economists, just understand "weighted average relative to a base
+period."
+How the pieces connect end-to-end: scraper/mock → raw DB table → cleaning script → cleaned
+DB table → index script → apix_daily table → API → frontend chart. Draw this together so no
+one is confused about data flow during integration.
+API contract: agree early (before deep coding) on the exact shape of /api/index and 
+/api/prices responses — this avoids frontend/backend integration pain later.

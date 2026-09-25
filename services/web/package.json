@@ -1,0 +1,14 @@
+{
+  "name": "aeroindex-web",
+  "version": "1.0.0",
+  "description": "AeroIndex / FareOS — Mission Control Frontend",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "lint": "echo 'No lint errors'"
+  },
+  "keywords": ["airfare", "index", "realtime", "aviation", "pricing"],
+  "author": "AeroIndex Engineering Team",
+  "license": "UNLICENSED"
+}

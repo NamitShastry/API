@@ -1,0 +1,3487 @@
+ 
+Claude Desktop (macOS), Connected 
+AeroIndex Feature Register: Tier 2 (F041–F090) 
+Tier 2 is the core engine and core dashboards: route basket, collection, cleaning, 
+the index maths, the main dashboards and live updates. Same format as Tier 1: What it 
+is / How it works / Data & API / Edge cases / Done when. 
+Scale figures used below. The locked basket is 20 directional routes × 7 lead buckets 
+× 8 sources = 1,120 searches per cycle, about 30 offers each, so roughly 33,600 
+quotes per cycle and about 134,000 per day at four cycles. (This corrects the larger 
+40-route figures used earlier for sizing. Both fit comfortably in the design.) 
+New tables introduced in this tier (add to 
+migrations): product, base_price, chain_link, sim_route_params, event_calenda
+r, tax_rule, fare_family_map, cell_stats, sim_truth. Their definitions are given 
+under the features that need them and collected at the end. 
+ 
+A. Collection 
+F041 — Route basket registry 
+What it is. The authoritative list of routes the index measures, with their weights, 
+versioned over time. 
+How it works. 
+• 
+Tables: ref_route (all known routes), basket_version (a named, dated 
+basket), route_weight (route weights inside a basket). One basket is active at a 
+time. 
+• 
+Locked basket (20 directional routes): DEL-BOM, BOM-DEL, DEL-BLR, 
+BLR-DEL, DEL-HYD, HYD-DEL, DEL-CCU, CCU-DEL, DEL-MAA, MAA-DEL, 
+BOM-BLR, BLR-BOM, BOM-HYD, HYD-BOM, BOM-GOI, GOI-BOM, BLR-
+HYD, HYD-BLR, plus DEL-GOI and GOI-DEL if you want 22 (the seed script 
+accepts any list in the CSV). 
+• 
+Selection rule (documented in the methodology): rank city pairs by 
+DGCA passenger traffic, take the top N covering at least a stated share of 
+domestic traffic, and require that at least 3 sources sell the route. The rule and 
+the source document are stored on basket_version.weight_source. 
+• 
+Each route belongs to attributes used for sub-
+indices: is_metro_pair, route_group (METRO_METRO, METRO_TIER2, TIER2_TI
+ER2), distance_band. 
+• 
+A database trigger enforces that weights per basket sum to 1 (±1e-6) before a 
+basket can be activated. 
+• 
+Activation is effective-dated (effective_from at a month boundary) so 
+history is never re-weighted silently (see F073). 
+Data / API. GET /api/v1/routes, GET /api/v1/basket/{id}, POST 
+/api/v1/basket (F096). 
+Edge cases. Removing a route mid-year is a methodology change requiring approval 
+and chain-linking. A route with no data for 7 days is flagged DORMANT and surfaced to 
+Data Health but stays in the basket until formally removed. 
+Done when. Seeding produces a valid active basket, the sum-to-one trigger rejects a 
+bad basket, and route attributes drive the group sub-indices. 
+F042 — Lead-time window planner 
+What it is. Defines how far ahead of departure each fare is observed, and turns "L07" 
+into an actual departure date to search. 
+How it works. 
+• 
+Buckets (locked): L01, L03, L07, L15, L30, L45, L60, with target days 1, 3, 
+7, 15, 30, 45, 60. The problem statement's windows (1, 7, 15, 30, 45) are all 
+included. 
+• 
+Bucket assignment ranges for observed lead days (used when a data source 
+supplies a lead that isn't exact): L01 1–2, L03 3–5, L07 6–10, L15 11–21, L30 22–
+37, L45 38–52, L60 53–70. 
+• 
+The planner sets departure_date = obs_date + target_days (IST calendar 
+date). 
+• 
+Lead days are computed from IST dates, never from timestamps, to avoid off-by-
+one errors at midnight. 
+• 
+Buckets can be added later (for example L90 for international) without code 
+changes, because weights live in lead_weight. 
+Edge cases. If a source's booking horizon is shorter than a bucket (a carrier that 
+doesn't sell 60 days ahead), tasks for that pair are marked SKIPPED with 
+reason BEYOND_HORIZON, and the cell relies on other sources. 
+Done when. Unit tests confirm the date arithmetic across month ends, leap days and 
+IST midnight, and that every observed lead maps to exactly one bucket. 
+F043 — Source registry and adapter contract 
+What it is. The list of places fares come from, and the one interface every source 
+implements. 
+How it works. 
+• 
+ref_source rows: INDIGO_DIRECT, AIRINDIA_DIRECT, AKASA_DIRECT, SPICEJE
+T_DIRECT, MMT, YATRA, CLEARTRIP, GOIBIBO, plus SIMULATOR, REPLAY, and 
+reserved LICENSED_* codes. 
+• 
+Each source has: channel (AIRLINE_DIRECT, OTA, LICENSED_FEED, SIMULATOR), 
+delay bounds (defaults 2000–5000 ms), daily request cap, enabled 
+flag, adapter_version, and a terms_reviewed record (who, when, outcome) 
+that gates live scraping (F049). 
+• 
+Adapters are discovered through a registry (entry points), so adding a source 
+means adding a module and one database row. 
+• 
+The contract (the FareSourceAdapter protocol) 
+has fetch(task) returning RawOffer items and healthcheck(). 
+• 
+Every adapter ships with contract tests: recorded payloads 
+in tests/golden/{source}/ that must parse to expected RawOffer lists. 
+Data / API. GET /api/v1/sources (with health), POST 
+/api/v1/ops/sources/{code}/pause|resume. 
+Edge cases. A disabled source is skipped by the planner and excluded from the 
+coverage denominator, with the change recorded in the audit log. 
+Done when. Swapping the simulator for a different adapter requires no change outside 
+the adapter package, and every enabled adapter passes its golden-payload tests. 
+F044 — Sampling plan and task generator 
+What it is. Turns the basket and lead windows into the concrete list of searches to run 
+each cycle. 
+How it works. 
+1. For each enabled source that sells the route, for each route in the active basket, 
+for each lead bucket: create one SearchTask (route × bucket × source). 
+2. Idempotency key: cycle_id|source|route|bucket. Re-running a planner for 
+the same cycle creates no duplicates. 
+3. Ordering: higher-weight routes first, then a random shuffle inside each priority 
+band, so a cycle cut short still covers the most important cells. 
+4. Pacing: per-source token buckets enforce delays and daily caps (F050). 
+5. Tasks are written to scrape_task (status QUEUED) and pushed onto the queue. 
+6. Planned count per cycle is stored on scrape_cycle.planned_tasks, which 
+becomes the denominator for coverage (F069). 
+Data / API. Tables scrape_cycle, scrape_task. Redis Stream scrape.tasks. 
+Edge cases. If a route is sold by only one source, tasks for that pair are 
+marked single_source so the coverage report can flag fragility. 
+Done when. A planner run for the seeded basket creates exactly 1,120 tasks (minus any 
+source-route pairs not sold), and a second run for the same cycle creates zero. 
+F045 — Collection scheduler (cycles) 
+What it is. The clock that starts collection cycles reliably. 
+How it works. 
+• 
+APScheduler runs in the collector container with a persistent job store. Default 
+cycles at 00:30, 06:30, 12:30, 18:30 IST, each staggered per source by a 
+random offset of 0 to 10 minutes. 
+• 
+Leader lock: only one collector instance schedules, using a Redis lock with a 60 
+s lease renewed every 20 s. 
+• 
+Cycle state machine: PLANNED → RUNNING → COMPLETE | PARTIAL | 
+FAILED. PARTIAL means at least 70% of tasks resolved before the deadline 
+(default cycle deadline 3 hours). 
+• 
+Misfire grace: a cycle missed by up to 15 minutes still starts. Beyond that it is 
+skipped and an alert fires. 
+• 
+No overlapping cycles: a new cycle does not start if the previous one is still 
+running (it is logged as SKIPPED_OVERLAP). 
+• 
+Manual controls (role DATA_OPS): trigger an ad-hoc cycle, pause and resume all 
+collection. Every action is audited. 
+• 
+Emits progress events every 10 s to ops.cycle for the Data Health page. 
+Edge cases. After a restart, in-flight tasks whose visibility timeout expired are re-
+queued (F053). Clock changes are irrelevant because all schedules use IST timestamps 
+with explicit timezone. 
+Done when. Killing the collector mid-cycle and restarting it resumes without 
+duplicating tasks, and the overlap and misfire rules behave as specified in tests using a 
+fake clock. 
+F046 — Calibrated simulator 
+What it is. The richer, realistic version of the basic simulator (F039), tuned to 
+published anchors, and the source of every demo number. 
+How it works. Extends F039 with: 
+• 
+Per-route parameters in sim_route_params(route_id, base_fare, tau, 
+lead_amp, dow_profile, season_profile, volatility), loaded from a 
+calibration file rather than hard-coded. 
+• 
+Calibration procedure: (1) set each route's base_fare so the simulated 
+monthly average lands at the published DGCA level where available, (2) 
+fit tau from any real fare samples you collected by hand, (3) record the sources 
+in docs/simulator_calibration.md. Uncalibrated parameters are marked 
+"illustrative" in the methodology page. 
+• 
+Carrier structure: CarrierFactor distinguishes LCC (about 0.92 to 1.00) 
+from FSC (about 1.10 to 1.30), and carriers move together via a common route 
+shock plus a smaller carrier-specific shock (total = 0.7·common + 
+0.3·specific), which makes cross-carrier agreement (F123) meaningful. 
+• 
+Seat dynamics: seats_left starts high and falls as lead shrinks; probability 
+of SOLD_OUT rises for lead ≤ 3 and on peak days. 
+• 
+Fare-family ladder: Saver, Standard/Flexi, Corporate with price multipliers 
+(1.00, 1.12–1.25, 1.35–1.60). The index uses the lowest available Saver-
+equivalent family by default (configurable). 
+• 
+Channel effects: OTAs add convenience fees and occasionally show a small 
+discount on the same flight. 
+• 
+Events: the festival calendar (F047) adds demand bumps; a "fuel surcharge 
+step" scenario raises fuel_surcharge by a fixed share from a given date. 
+• 
+Determinism: one seed drives everything; a scenario file can script events 
+("inject +18% spike on DEL-BLR L07 from 09:40"). 
+Done when. A generated month shows: lead-time ratio near 2.5, weekday pattern, 
+festival bump at the right date, correlated carrier moves, and seat and sold-out 
+behaviour per lead bucket, all asserted by statistical tests. 
+F047 — Festival and event calendar 
+What it is. A table of dated events that affect demand, used across simulation, charts, 
+anomaly explanation and forecasting. 
+How it works. 
+• 
+event_calendar(event_id, name, category, start_date, end_date, 
+amplitude, width_days, direction, source_note, created_by). 
+• 
+Categories: FESTIVAL, HOLIDAY, LONG_WEEKEND, SCHOOL_VACATION, SPORTING, R
+EGULATORY, FUEL_PRICE. 
+• 
+direction allows asymmetry: outbound travel rises before a festival, return 
+travel after (OUTBOUND, RETURN, BOTH). 
+• 
+Dates are entered from official calendars by an admin (never inferred by the 
+software) and each row carries a source_note, since festival dates vary by year 
+and region. 
+• 
+Consumers: simulator demand bumps (F046), chart markers (F022), anomaly 
+explanations ("window overlaps Diwali", F124), forecast regressors (F136). 
+• 
+CRUD in Admin, plus CSV import with validation. 
+Done when. Events appear on charts, the simulator raises fares around them, and the 
+anomaly explanation names them. 
+F048 — Defect injector with ground-truth labels 
+What it is. Deliberately adds realistic errors to simulated data, so the cleaning pipeline 
+can be measured objectively. 
+How it works. 
+• 
+Defect types and default rates: duplicates 1.5%, sold-out 1.0%, price parse 
+errors 0.5% (dropped digit, 1,899 read as 1, currency symbol 
+embedded), extreme outliers 0.3% (×8 or ÷8), missing components 
+2.0% (only total shown), stale offers 0.1% (departure in the past), plus 
+scenario-level defects: source outage (a source returns nothing for a window) 
+and schema drift (a field renamed in one source). 
+• 
+Each injected defect is recorded as ground truth in sim_truth(raw_key, 
+defect_type, injected_at). The truth field is stripped from the 
+event before it enters the pipeline, so the cleaner can never read it. 
+• 
+After a run, the harness make dq-eval joins pipeline decisions to ground truth 
+and reports precision and recall per defect type (for example "extreme 
+outliers: recall 0.98, precision 0.95"). 
+• 
+Rates and seed are configurable, and deterministic. 
+Done when. The evaluation report is generated automatically in CI and fails the build 
+if recall on extreme outliers or duplicates drops below 0.9. 
+F049 — Live Playwright adapter (one source) 
+What it is. A real scraper for one search page, proving the adapter contract works on 
+the actual web. Stretch goal: never allowed to block the demo. 
+How it works. 
+1. Gate: it refuses to run unless LIVE_SCRAPE_ENABLED=true and the source row 
+has a terms_reviewed record (reviewer, date, outcome PERMITTED). 
+2. Launches Chromium headless in an isolated container with resource limits (1 GB, 
+2 CPUs, 60 s hard timeout per search). 
+3. Applies polite crawling (F050), then opens the search page, fills origin, 
+destination and date (or uses a deep link with query parameters), and waits for 
+results. 
+4. Primary extraction: a page.on("response") handler captures the JSON 
+response the page itself consumes. Fallback: DOM extraction with resilient 
+selectors (data-testid/ARIA first, text patterns second). 
+5. Saves the raw payload (F052), parses 
+to RawOffer (data_origin='LIVE_SCRAPE'), publishes to the bus. 
+6. Volume cap: at most 20 searches per day per source in H, spaced by the delay 
+window. 
+7. On block, CAPTCHA, timeout or parse failure: takes a screenshot, records the 
+error code, marks the task BLOCKED or FAILED, and does not attempt to 
+circumvent anything. 
+Edge cases. If any check fails, the system falls back to the simulator for that cell, and 
+the UI shows the origin mix honestly (F014). 
+Done when. One real page yields correctly parsed offers on at least a test run, a forced 
+failure produces a clean fallback, and the gate blocks execution when the terms record is 
+missing. 
+F050 — Polite crawling 
+What it is. The rules that keep collection respectful, compliant and low-impact. 
+How it works. 
+• 
+robots.txt: fetched per host and cached 24 hours, evaluated with 
+Python's urllib.robotparser. Disallowed paths are never requested. A Crawl-
+delay directive overrides the default delay if longer. 
+• 
+Identity: the user agent is CPI-IndexBot/1.0 (+https://<your-
+domain>/bot), with a public page describing the bot's purpose and a contact 
+address. 
+• 
+Rate: one request in flight per host, a random 2–5 s delay between actions, a 
+per-host daily cap, and off-peak scheduling by default. 
+• 
+Back-off: on HTTP 429 or 503, honour Retry-After; otherwise exponential 
+back-off. Three consecutive blocks in a cycle open the source's circuit breaker 
+(F118). 
+• 
+Never: solve CAPTCHAs, spoof identities to evade blocks, use credentials or log 
+in, create bookings or add items to a cart. 
+• 
+Kill switch: a single setting SCRAPING_ENABLED=false stops all live collection 
+immediately. 
+Done when. A test proxy server verifies that disallowed paths are never requested, that 
+delays fall in the configured range, and that a 429 leads to back-off. 
+F051 — Proxy and fingerprint manager (production) 
+What it is. Manages the network identities collectors use, to spread load and keep 
+collection stable. Designed now, built in production. In H, collectors use one direct 
+egress route. 
+How it works (P). A pool of provider-supplied proxies (India-region), each with a 
+health score (success rate, latency, ban signals) stored in Redis (proxy:health:{id}). 
+A worker leases a proxy plus a coherent browser profile (user agent, viewport, 
+locale en-IN, timezone Asia/Kolkata) and holds it for a session so cookies stay 
+consistent. Unhealthy proxies are retired for a cool-down. Credentials are encrypted at 
+rest with per-tenant keys. Cost per request is tracked. Ethics: rotation exists to spread 
+load, not to defeat access restrictions, and the rules in F050 still apply. 
+Done when (P). Lease, release and health scoring pass tests against a mock provider. 
+F052 — Raw capture store with content hashes 
+What it is. A permanent, tamper-evident copy of exactly what each source returned. 
+How it works. 
+• 
+Each response body is stored as a compressed file (zstd) under a content-
+addressed path: raw/ab/cd/<sha256>.json.zst. 
+• 
+Sensitive headers and cookies are stripped before storage; only the body plus safe 
+metadata (URL path without query secrets, status, timestamp) are kept. 
+• 
+A raw_capture row links the capture to its task (s3_uri, sha256, size). 
+• 
+Identical payloads are stored once. Maximum size 5 MB. An integrity job re-
+hashes a random 1% sample nightly. 
+• 
+Retention: keep indefinitely (compressed size is small). In production the bucket 
+uses write-once object lock. 
+• 
+The Provenance Drawer (F091) and Quote Inspector (F093) link quotes to 
+their captures by hash. 
+Edge cases. Simulated data has no capture; payload_sha256 is null and the inspector 
+says "generated by simulator". 
+Done when. Modifying a stored file makes the integrity job fail loudly. 
+F053 — Task retry, backoff and skip handling 
+What it is. Automatic, bounded recovery from failed searches. 
+How it works. 
+• 
+Task states: QUEUED → RUNNING → SUCCEEDED | FAILED | BLOCKED | 
+SKIPPED. 
+• 
+Error 
+taxonomy: TIMEOUT, NETWORK, HTTP_4XX, HTTP_5XX, BLOCKED, CAPTCHA, PARSE, 
+EMPTY_RESULT, BEYOND_HORIZON, POLICY (robots). 
+• 
+Retries for TIMEOUT, NETWORK, HTTP_5XX: up to 3 attempts with delays of about 
+30 s, 2 min and 10 min, each with ±25% 
+jitter. BLOCKED and CAPTCHA are not retried immediately; they count toward the 
+circuit breaker. PARSE failures are quarantined with the capture kept for replay 
+after a parser fix. 
+• 
+Visibility timeout: a running task not heartbeating for 5 minutes returns 
+to QUEUED. 
+• 
+Poison tasks: after final failure the task is FAILED; a repeated failure pattern on 
+the same cell triggers a notification. 
+• 
+Fallback: if a cell fails at one source, the planner does not silently substitute; 
+coverage simply drops, unless the fallback ladder (F143) is enabled. 
+Done when. Fault-injection tests confirm retry timing, jitter bounds, no duplicate 
+results after a retry, and correct final states. 
+ 
+B. Cleaning and Data Quality 
+F054 — Parser and normaliser 
+What it is. Converts whatever a source returned into one clean, standard structure. 
+How it works. 
+1. Decode and validate against the RawOffer schema. Anything unparseable 
+becomes a rejected item with code R01. 
+2. Price text parsing: handles ₹ 4,180, INR 4180.00, Rs. 4,180/-, Indian 
+grouping (1,23,456) and stray spaces, converting to exact decimals (never 
+floats). Ambiguous strings go to quarantine. 
+3. Time handling: all timestamps parsed with their offsets, stored in 
+UTC; obs_date derived in IST; flight_date is the local departure date. 
+4. Identifier normalisation: flight numbers standardised (6E 
+2041 becomes 6E2041), carrier names mapped to IATA codes via a mapping 
+table, airport codes validated against ref_airport. 
+5. Fare family mapping through fare_family_map(source_code, 
+raw_label, normalised_family, tier) so "Saver", "SME", "Economy Lite" 
+resolve to a common ladder. 
+6. Derived fields: dow (of departure), dep_time_band (EARLY 00–
+06, MORNING 06–12, MIDDAY 12–16, EVENING 16–21, NIGHT 21–
+24), lead_days, lead_bucket, product_key. 
+7. Output: a CleanCandidate passed to the rule engine. 
+Done when. A golden test suite of at least 60 messy strings and payloads per adapter 
+parses to the expected values. 
+F055 — Deduplication engine 
+What it is. Prevents the same fare from being counted twice. 
+How it works. 
+• 
+dedup_hash = sha256(source | carrier | flight_number | 
+departure_ts | cabin | fare_family | floor(scraped_at to 15 
+minutes)). 
+• 
+First look-up in Redis (dd:{hash}, TTL 1 hour) for speed, then the database 
+unique constraint (dedup_hash, scraped_at) as the final guard. 
+• 
+Same hash, same price: silent duplicate, counted in a duplicate metric and 
+dropped. 
+• 
+Same hash, different price: the first is kept, the second is recorded 
+as CONFLICTING_DUPLICATE in dq_issue for review, because it may signal a 
+mid-window price change or a parsing bug. 
+• 
+Cross-channel duplicates (same flight via airline and OTA) are not dropped 
+here; they are handled by the channel policy (F062). 
+Done when. Replaying the same batch twice adds zero rows, and conflicting duplicates 
+are logged. 
+F056 — Sold-out and unavailable handling 
+What it is. Correctly treats flights that can't be bought. 
+How it works. 
+• 
+Availability values: AVAILABLE, SOLD_OUT, UNKNOWN. seats_left = 
+0 implies SOLD_OUT. 
+• 
+Sold-out offers are excluded from price averages (the problem statement 
+says to skip them) but are counted in a per-cell sell-out rate, a useful indicator 
+on its own shown in the Route drill-down. 
+• 
+UNKNOWN availability with a valid price is kept and 
+flagged AVAILABILITY_UNKNOWN. 
+• 
+LOW_SEATS flag when seats_left ≤ 3; the fare is retained, since scarcity pricing 
+is real inflation. 
+Done when. Sold-out offers never enter fare_quote_clean.is_index_eligible, 
+and the sell-out rate is available via API. 
+F057 — Cleaning rule engine (R01–R12) 
+What it is. The ordered set of checks every quote passes through. 
+How it works. 
+• 
+Each rule is a small class implementing CleaningStage.apply(), 
+returning Pass, Flag(code) or Reject(code). Rules run in order; the 
+first Reject stops processing; flags accumulate. 
+• 
+Rule definitions and parameters live in dq_rule (id, severity, params JSON, 
+enabled), editable by stewards with audit; changes apply within 60 seconds 
+without redeploy. 
+• 
+The locked catalogue: 
+Rule 
+Check 
+Default action 
+R01 
+Schema valid, required fields present 
+Reject 
+R02 
+Currency INR (else logged conversion) 
+Reject or flag 
+R03 
+Total equals components within ₹1 
+Flag, recompute 
+R04 
+Fare between ₹800 and 10× route median 
+Reject 
+R05 
+Robust outlier (F058) 
+Flag 5–7, reject above 7 
+R06 
+Duplicate (F055) 
+Reject 
+R07 
+Cross-channel duplicate 
+Info 
+R08 
+Sold-out 
+Reject from price 
+R09 
+Departure in the past or inconsistent lead 
+Reject 
+R10 
+Jump above 60% versus same product in 2 hours 
+Flag SURGE_JUMP 
+R11 
+Components missing, total only 
+Flag 
+R12 
+Search returned nothing 
+Info, cell missing 
+• 
+Every decision emits a metric (dq_rule_hits_total{rule,action}) feeding 
+the Quality dashboard funnel. 
+• 
+Performance budget: under 1 ms per quote average. 
+Done when. Each rule has positive and negative unit tests, and disabling a rule in the 
+table takes effect without restart. 
+F058 — Robust outlier detection (MAD) 
+What it is. Statistical detection of implausible prices that is not fooled by the outliers 
+themselves. 
+How it works. 
+• 
+Score: z = |x − median| / (1.4826 × MAD) computed against a trailing 14-
+day window of the same cell (route × lead bucket × departure weekday), read 
+from cell_stats(cell_key, median, mad, n, updated_at) refreshed every 
+15 minutes. 
+• 
+Thresholds: z > 5 flags, z > 7 rejects (configurable). 
+• 
+Cold start: with fewer than 30 observations, fall back to the route-level window 
+with a wider threshold (reject at z > 9); with fewer than 10, only the absolute 
+limits in R04 apply. 
+• 
+Excluded from the window: rejected quotes, so a run of bad data can't poison 
+the baseline. 
+• 
+Market-move protection: if three or more carriers on the same route and 
+bucket exceed z > 5 in the same direction within 2 hours, they are treated as a 
+genuine market move: rejects are downgraded to flags with MARKET_MOVE, and 
+the event is sent to the anomaly engine (F123). This prevents the cleaner from 
+erasing real inflation, which is the exact problem the statement warns about. 
+• 
+The score is stored as outlier_score on the clean row for audit. 
+Done when. On simulated data with injected outliers, recall exceeds 0.95 and false 
+rejects during an injected festival spike are near zero (tested). 
+F059 — Missing-data handling and imputation limits 
+What it is. A transparent policy for gaps, never silently filling with zeros or guesses. 
+How it works. 
+• 
+Cell missing (no valid observations that day): carry forward the previous 
+day's cell relative for up to 2 consecutive days, flagged IMPUTED_CARRY. 
+Beyond that, the cell is excluded and route weights renormalised (F066, F068). 
+• 
+Product missing today: simply not in today's matched set. It doesn't drag the 
+average. 
+• 
+Component missing: stored as total-only (R11); excluded from component 
+sub-indices but included in the total index. 
+• 
+Never impute price levels, only relatives, and never for more than two 
+days. 
+• 
+Imputation rate (imputed cells ÷ all cells) is a published quality metric on the 
+Data Health page, and appears in the coverage tooltip. 
+Done when. Gap scenarios in tests produce the specified carry-forward, exclusion and 
+renormalisation behaviour, and the imputation rate is reported. 
+F060 — Quarantine store and review queue 
+What it is. A holding area for questionable data, with human review. 
+How it works. 
+• 
+Rejected and flagged items are written to dq_issue (rule, detail JSON, payload 
+pointer) and streamed on fares.quarantine. 
+• 
+The Quality review tab (F117) lists issues with the quote, the rule, and a context 
+chart of the cell's trailing distribution. 
+• 
+Actions for DATA_STEWARD: Accept (release into the clean 
+ledger), Reject (confirm), Bulk accept similar (all issues of the same rule and 
+cell in the window), Add rule exception. Every action requires a written 
+reason. 
+• 
+Accepting reprocesses the quote through the pipeline with that rule bypassed, 
+marks the day for recomputation, and creates a revision (F094) if the day is 
+already OFFICIAL. 
+• 
+Queue SLA indicator: issues older than 48 hours are highlighted. 
+• 
+Auto-resolution: rejected duplicates and known-benign patterns resolve 
+automatically as AUTO_REJECTED. 
+Done when. Accepting a quarantined quote changes the affected day's value, and the 
+change is auditable. 
+F061 — Fare decomposition (base, fuel, taxes, fees) 
+What it is. Splits every price into its parts, following CPI practice of tracking base price 
+separately from taxes. 
+How it works. 
+• 
+Components: base_fare, fuel_surcharge, taxes (government and airport 
+levies, GST), convenience_fee (OTA-added, optional), and ancillaries (never 
+included). 
+• 
+Index basis: total_fare = base + fuel + taxes. The convenience fee 
+is excluded from the headline index because it is channel-specific and optional; 
+it is tracked separately. 
+• 
+Identity check (R03): total ≈ base + fuel + taxes (+ fee) within ₹1. 
+• 
+Deriving missing parts: when only total is shown, tax parts are estimated 
+using tax_rule(rule_id, component, rate_or_amount, applies_to, 
+valid_from, valid_to, source_note), a configurable, effective-
+dated table (never hard-coded, because tax rates and airport charges change; 
+verify current values before use). Estimated splits are 
+flagged ESTIMATED_SPLIT and excluded from component sub-indices. 
+• 
+Component sub-indices (F075) let analysts see whether an APIx move came from 
+airline pricing, fuel pass-through or taxes. 
+Done when. Tests confirm the identity, that convenience fees never enter the headline, 
+and that estimated splits are labelled. 
+F062 — Channel policy 
+What it is. Prevents double counting of a flight seen through both an airline site and a 
+travel platform. 
+How it works. 
+• 
+Match across channels on flight_number + departure_ts + cabin + 
+fare_family. 
+• 
+DIRECT_FIRST (default): if the airline-direct quote exists, use it in the index; 
+keep the OTA quote as a spread sample (ota_total − direct_total). If only 
+an OTA quote exists, use it and flag OTA_ONLY. 
+• 
+POOLED: use the mean of all channel quotes for the matched flight. 
+• 
+The policy and its rationale are stored in methodology_version.params and 
+displayed on the Methodology page. Changing it is a methodology change 
+needing approval. 
+• 
+Feeds the Channel comparison dashboard (F083). 
+Done when. With both channels present, exactly one quote per flight enters the index 
+under DIRECT_FIRST, and the spread sample is stored. 
+ 
+C. Index Engine 
+F063 — Product matching ladder 
+What it is. Defines what counts as "the same item" across days, the foundation of a fair 
+price index. 
+How it works. 
+• 
+Ladder: (a) exact 
+key carrier|flight_number|cabin|fare_family|lead_bucket; (b) fallback 
+key carrier|dep_time_band|stops|fare_family|lead_bucket when no 
+flight number is available; (c) otherwise stored but not index-eligible. 
+• 
+A product table (product_key, level, first_seen, last_seen, active, 
+route_id) tracks lifecycle. A product unseen for 28 days becomes inactive. 
+• 
+Keys use normalised values (F054), so cosmetic differences don't create new 
+products. 
+• 
+Fallback-key products are flagged MATCH_FALLBACK and their share per cell is 
+reported. 
+Edge cases. Flight-number changes on schedule seasons produce a new product, 
+entering via overlap splicing (F074) so the index doesn't jump. 
+Done when. Reprocessing the same data yields identical product keys, and the share of 
+fallback matches is reported. 
+F064 — Base period and weekday-matched base prices 
+What it is. The reference against which all price changes are measured (index = 100). 
+How it works. 
+• 
+Base period: the first full calendar month of data (configurable 
+in methodology_version.base_period). 
+• 
+Base price P0(product, weekday) = mean total fare of that product for 
+departures on that weekday during the base period, stored 
+in base_price(product_key, dow, p0, n_obs, methodology_id, 
+component). Weekday-matching removes the strong weekday effect, so a Sunday 
+fare is compared with base Sundays. 
+• 
+Minimum evidence: at least 2 observations per (product, weekday). Otherwise 
+use the cell's weekday factor times the product's all-weekday mean, 
+flagged BASE_ESTIMATED. 
+• 
+During the base month itself the system runs in calibration: values are 
+computed against the running base and labelled "Base period". This gives the 
+demo a value from day one without a fake number. 
+• 
+Base prices are immutable once the base period closes; re-basing is a new 
+methodology version. 
+Done when. After the base period closes, the average relative across base-period data 
+is 100.0 within tolerance, and re-computation never changes stored P0. 
+F065 — Jevons elementary index 
+What it is. The core price-change calculation inside each route × lead cell. 
+How it works. 
+• 
+Relative: rel(i,t) = P(i,t) / P0(i, dow(i,t)). 
+• 
+Elementary index: I(r,l,t) = 100 × exp( (1/n) Σ ln rel(i,t) ), the 
+geometric mean over matched products i. 
+• 
+Why geometric: the standard elementary formula for unweighted price 
+relatives; it avoids the upward bias of the arithmetic mean of relatives and 
+behaves well when consumers substitute between flights. 
+• 
+Computed in the log domain for numerical stability. Relatives are capped 
+to [0.25, 4.0] and capped values flagged (a sanity guard, since a fourfold 
+change in one product is nearly always a data problem). 
+• 
+Minimum sample: at least 5 matched products in a cell; otherwise the cell 
+is INSUFFICIENT and excluded. 
+• 
+Optional variant: carrier-share weighted geometric mean 
+using carrier_route_share (parameter). 
+• 
+Output stored 
+in apix_cell_daily (geo_mean_relative, n_quotes, n_matched, mean_price
+_inr, median_price_inr, coverage_ratio). 
+Done when. The worked example from the locked architecture (route A 107.47, route 
+B 105.00, APIx 106.48) passes to four decimals, and property tests (identical prices give 
+100; scaling by k scales by k; row order irrelevant) pass. 
+F066 — Lead-bucket aggregation 
+What it is. Combines the seven lead-time cells into one route index. 
+How it works. 
+• 
+I(r,t) = Σ_l λ_l × I(r,l,t) / Σ_l λ_l, over buckets present and 
+not INSUFFICIENT. 
+• 
+Default λ: L01 0.08, L03 0.12, L07 0.20, L15 0.22, L30 0.22, L45 0.12, L60 0.04. 
+These are assumptions about the booking curve, stored in lead_weight, 
+shown openly on the Methodology page, and marked for calibration from 
+booking-time distributions under a data-sharing agreement. 
+• 
+Rule: a route needs at least 4 of 7 buckets to produce an index; 
+otherwise INSUFFICIENT_COVERAGE for that route/day. 
+• 
+Renormalisation over present buckets keeps the result meaningful when a bucket 
+is missing, and the affected day is flagged. 
+Done when. Missing-bucket scenarios in tests renormalise correctly, and fewer than 4 
+buckets yields no route value. 
+F067 — DGCA route weights 
+What it is. Real traffic-based importance for each route. 
+How it works. 
+• 
+Import: dgca_route_traffic.csv (columns origin, destination, period, 
+passengers, source_doc, source_url). 
+• 
+w_r = passengers_r / Σ passengers over routes in the basket. Directional 
+routes take the directional or split traffic as the data allows; the treatment is 
+documented. 
+• 
+Validation: no negatives, no duplicates, weights sum to 1 (±1e-6), every basket 
+route present. Missing routes stop the import. 
+• 
+Provenance: the source document, period and import time are stored 
+on basket_version; the Methodology page shows them. 
+• 
+Annual refresh creates a new basket version (F073). 
+• 
+Illustrative mode: if real data is unavailable, --illustrative-weights seeds 
+placeholders and the UI marks weights "Illustrative" everywhere they appear. 
+Never present placeholders as official. 
+Done when. A malformed file is rejected with a precise message, and a valid file 
+produces a basket whose weights sum to 1. 
+F068 — All-India APIx aggregation 
+What it is. The single headline number, plus the series that break it down. 
+How it works. 
+• 
+APIx(t) = Σ_r w_r × I(r,t) / Σ_r w_r, over routes that have a value. 
+• 
+Coverage rule: if routes with values represent less than 80% of total weight, the 
+day is INSUFFICIENT_COVERAGE and the headline is not published. 
+• 
+Series keys produced (all with the same 
+method): OVERALL, ROUTE:{code}, LEAD:{bucket}, CARRIER:{iata}, GROUP:{
+route_group}, CHANNEL:{DIRECT|OTA}. 
+• 
+Carrier series use only that carrier's products, with route weights re-scaled to the 
+routes it serves. 
+• 
+Each output row 
+carries methodology_id, version, coverage_ratio and status (FLASH, OFFIC
+IAL, REVISED). 
+Done when. Overall equals the weighted average of route series in tests, and coverage 
+below 80% suppresses publication. 
+F069 — Coverage guard 
+What it is. Prevents publishing a number built on too little data. 
+How it works. 
+• 
+Levels: cell coverage (matched ÷ planned products), route coverage (buckets 
+present), overall coverage (weight share of routes present). 
+• 
+Thresholds (configurable): cell below 60% excluded; route below 4 buckets 
+excluded; overall below 80% blocks OFFICIAL and shows "Insufficient data". 
+• 
+Coverage between thresholds and 95% is published with a LOW_COVERAGE marker 
+(hollow points, amber tile). 
+• 
+The number is displayed on the Coverage tile, each chart tooltip and the API 
+(coverage_ratio). 
+• 
+Coverage heatmap (route × bucket) is on Data Health (F119). 
+Done when. Simulated outages at each threshold trigger the exact behaviours listed. 
+F070 — Incremental FLASH engine 
+What it is. Updates the live index within seconds of each new quote without re-reading 
+history. 
+How it works. 
+• 
+State in Redis: cell 
+hash cell:{obs_date}:{route}:{bucket} with sum_ln and n; product 
+hash prod:{obs_date}:{product_key} with the latest ln_rel. 
+• 
+Update (atomic Lua script): for a new quote with ln_rel: if the product 
+exists, sum_ln += ln_rel − old_ln_rel; otherwise sum_ln += ln_rel; n 
++= 1. Then recompute that cell's Jevons value (exp(sum_ln/n)), then the route 
+index (from 7 cell values), then the overall (from 20 route values). Everything 
+after the cell update is a small in-memory calculation. 
+• 
+Publish: an IndexTick (overall and the affected route) is emitted, throttled to at 
+most 4 per second per series. 
+• 
+Persistence: every 30 seconds the engine writes provisional rows 
+to apix_flash and apix_cell_daily (status='FLASH'). On restart it rebuilds 
+the day's state from fare_quote_clean (a single scan of that day's rows). 
+• 
+FLASH price rule: the product's latest accepted quote of the day. 
+• 
+Correctness check: the OFFICIAL freeze (F071) recomputes the day from 
+stored quotes and compares. 
+Done when. After feeding a full simulated day, the incremental value equals the batch 
+recomputation within 0.001 points, and a killed-and-restarted engine recovers the same 
+state. 
+F071 — OFFICIAL daily freeze 
+What it is. The moment a day's number becomes final and publishable. 
+How it works. 
+1. Schedule: 23:30 IST daily (or manual trigger by APPROVER). 
+2. Recompute the day from stored fare_quote_clean (not from Redis state): 
+product daily price = mean of the day's accepted quotes; then cells, routes, 
+overall. 
+3. Checks: difference versus the last FLASH value within 0.05 points (otherwise 
+logged as FLASH_OFFICIAL_DRIFT and investigated); coverage above thresholds; 
+no unresolved critical data alert; quarantine backlog for the day below a limit. 
+4. If checks pass, 
+write apix_cell_daily and apix_series_daily with status='OFFICIAL', pu
+blished_at, and emit index.official.published (webhooks F113, 
+notifications F035, report triggers F105). 
+5. If checks fail, the day stays FLASH, an alert is raised, and an approver can override 
+with a written reason (F095). 
+6. Late data: quotes arriving after cut-off belong to the next day's observations. 
+Corrections to a frozen day go through revisions only. 
+7. Idempotent: running the freeze twice yields the same result and no duplicate 
+rows. 
+Done when. The freeze on a seeded day reproduces stored values exactly, failing 
+checks block publication, and reruns are safe. 
+F072 — Weekly and monthly rollups 
+What it is. Aggregated views of the daily official series. 
+How it works. 
+• 
+Database views apix_weekly (ISO weeks, Monday start) 
+and apix_monthly (calendar months) average the daily OFFICIAL values and 
+record the minimum coverage inside the period. 
+• 
+Both are refreshed after every official freeze. 
+• 
+In-progress periods are computed on the fly, labelled "n of m days". 
+• 
+The API also returns the period-end value alongside the average, since some 
+users prefer it. 
+• 
+Rollups never re-weight; they only average published values, so they always 
+reconcile with the daily series. 
+Done when. Independent recomputation from daily rows matches rollups exactly on 
+the seeded data. 
+F073 — Chain-linking and weight updates 
+What it is. Lets weights change (for example each year) without breaking the series. 
+How it works. 
+• 
+When a new basket becomes active on month start T, the new series is linked to 
+the old one: APIx_new(t) = APIx_old(T−1) × [ Σ w'_r I'(r,t) / Σ w'_r 
+I'(r,T−1) ] for t ≥ T, where I' uses base prices re-referenced to the link 
+month. 
+• 
+A chain_link(link_id, effective_from, old_basket, new_basket, 
+link_factor, computed_at) table stores each link. 
+• 
+Historical published values are not restated; the series shows a 
+"Methodology/weights change" marker (F022). 
+• 
+Invariants tested: continuity at T−1 to T (no artificial jump beyond the true price 
+movement), and monotonic consistency when weights are identical. 
+Done when. Activating a basket with identical weights produces no change in the 
+series; activating one with different weights produces continuity at the link. 
+F074 — Overlap splicing of new products 
+What it is. New flights enter the index without creating a fake jump. 
+How it works. 
+• 
+When a product first appears with no base price for its weekday, P0_new = 
+P_first_observation / (I_cell(t_first) / 100), so its first relative 
+equals the cell's current index level, contributing neutrally. 
+• 
+The product is flagged SPLICED for its first 28 days. 
+• 
+Cap: if spliced products exceed 30% of a cell's matched set, the cell is 
+flagged HIGH_SPLICE_SHARE (the index there leans on assumptions). 
+• 
+Retiring products simply drop out; no imputation. 
+Done when. Injecting 50 new products on one day in tests moves the cell index by less 
+than 0.05 points. 
+F075 — Alternate bases (total, base fare, fuel, taxes) 
+What it is. The same index, computed for each fare component so analysts see what 
+drove a change. 
+How it works. 
+• 
+Bases: TOTAL, BASE, FUEL, TAXES. Each has its own base prices 
+(base_price.component) and its own relatives; the code path is identical. 
+• 
+Contribution decomposition: the change in the total is approximately Σ_k 
+s_k × ΔI_k, where s_k is component k's share of total price in the base period. 
+Shown as a stacked contribution bar on the Explorer. 
+• 
+Component series require the component split (not ESTIMATED_SPLIT); coverage 
+per component is reported. 
+Done when. Component contributions sum to the total change within a stated 
+tolerance in tests. 
+ 
+D. Core Dashboards 
+F076 — Overview dashboard 
+What it is. The home page (wireframe in Part D1). 
+How it works. 
+• 
+One aggregated request, GET /api/v1/overview?from&to&freq&status, 
+returns headline sentence, KPI tiles, trend series, contributions, component mix, 
+mini-heatmap, alerts summary, freshness and next-cycle time. This avoids many 
+round trips and speeds first paint. 
+• 
+Grid: row 1 headline; row 2 five KPI tiles; row 3 trend (8 columns) + what-
+moved (4); row 4 mini-heatmap, component mix, attention (4+4+4); row 5 
+collapsible live ticker. 
+• 
+Refresh: live ticks patch KPI and trend; the aggregated payload refetches every 
+60 seconds and on window focus. 
+• 
+Performance budget: Largest Contentful Paint under 2.5 s on a broadband 
+connection, JS for the page under 250 KB gzipped, server response p95 under 
+300 ms (cached 30 s). 
+• 
+Interactions: click chart point or tile, then the Provenance Drawer; click a route 
+bar or heatmap cell, then the Route page; "Pause updates" freezes changes. 
+• 
+Ops roles additionally see the Data Health strip (F090). 
+Done when. All widgets render with the seeded dataset, each has loading, empty and 
+error states, and Lighthouse performance is at least 85. 
+F077 — Index Explorer 
+What it is. The analyst's workbench. 
+How it works. 
+• 
+Series picker: search-and-add up to 6 series (OVERALL, routes, carriers, lead 
+buckets, groups, channels). 
+• 
+Transformations: Level, % change over previous period, Year-on-year, 
+Rebased (any chosen date = 100, computed client-side from level data so it is 
+instant), Log scale, smoothing (7-day simple or exponential). 
+• 
+Tabs: Trend, Carriers (F082), Channels (F083), Components (F075/F084). 
+• 
+Right panel: series details (methodology, basket, coverage, last revision, sample 
+size). 
+• 
+Data table below the chart: virtualised, sortable, exportable (F026, F032). 
+• 
+All state in the URL. Advanced options (smoothing, log axis, seasonal 
+adjustment) are collapsed by default to keep the page simple. 
+Done when. Rebasing matches a hand calculation, and six series render without layout 
+problems at 1024 px width. 
+F078 — Route heatmap (route by lead time) 
+What it is. A grid showing where price pressure is, by route and by how far ahead 
+people book. 
+How it works. 
+• 
+Rows = routes, columns = lead buckets (L01…L60). Endpoint GET 
+/api/v1/analytics/heatmap?type=route_lead&metric=.... 
+• 
+Metrics: index level, change versus previous period (default 7 days), mean fare 
+(₹), sell-out rate. 
+• 
+Colour: a sequential five-step scale (cool to warm) with legend; clamp sliders 
+control the range to prevent one extreme cell washing out others. 
+• 
+Missing data is drawn as diagonal hatching (never as a low colour) with the 
+tooltip "Not enough data (n=3)". 
+• 
+Interactions: hover shows value, n and coverage; click opens the Route page 
+filtered to that bucket; rows sort by weight, change or name; rows can be grouped 
+by route group. 
+• 
+Also available as weekday × bucket (per route) and route × date (calendar style) 
+via the type parameter. 
+• 
+Accessible: "view as table" and full keyboard navigation. 
+Done when. Cell values match the cell table in the database, hatched cells appear for 
+insufficient data, and sort and clamp controls work. 
+F079 — India flow map 
+What it is. A map-style view of routes as arcs between airports. 
+How it works. 
+• 
+Airports plotted at latitude/longitude on a neutral canvas. No state or national 
+boundary polygons are drawn (deliberate, to avoid boundary-depiction 
+compliance issues). 
+• 
+Arcs are great-circle curves. Thickness = route weight, colour = price change 
+(diverging scale), opacity = coverage. 
+• 
+Airports sized by traffic; labels for the top 10 by default with a toggle for all, with 
+collision avoidance. 
+• 
+Hover highlights a route, showing its numbers; click opens the Route page. 
+• 
+Subtle pulse on arcs when new quotes arrive (rate-limited to 2 pulses per second; 
+disabled under reduced motion). 
+• 
+Toggle "Both directions combined / separate". 
+Done when. All 20 routes render with correct geometry, hover and click work, and the 
+pulse rate limit holds under a heavy simulated stream. 
+F080 — Route drill-down page 
+What it is. Everything about one route on one page. 
+How it works. Sections, top to bottom: 
+1. Header card (F024). 
+2. Route index trend versus overall (two lines). 
+3. Carrier price bands: box plot per carrier (10th, 25th, median, 75th, 90th 
+percentile) for the selected lead bucket. 
+4. Booking curve: price versus lead days for today, 7 days ago and 30 days ago. 
+5. Departure-time bars: mean fare by time band. 
+6. Weekday × lead heatmap. 
+7. Sell-out rate by lead bucket. 
+8. Anomaly timeline for this route. 
+9. Latest quotes (F025). 
+• 
+A sticky in-page section navigator. Filters (carrier, lead bucket, channel) apply to 
+all sections. 
+Done when. Each section's numbers reconcile with the API, and the page loads under 
+2 s with the seeded data. 
+F081 — Lead-time elasticity chart 
+What it is. Visualises how prices change with booking lead time. 
+How it works. 
+• 
+Chart: x = days before departure (1–60), y = price index relative to the 45-day 
+price; observed points with the fitted curve P(l) = a + b·exp(−l/τ) and a 
+shaded band (±1 residual standard deviation). 
+• 
+Cards: "Last-minute premium" (price at L01 ÷ price at L45), "Steepest drop" 
+(the lead interval with the largest per-day decline), "Fit quality" (R² labelled 
+Strong/Fair/Weak). 
+• 
+Pairwise table: percentage price change per extra day of advance booking 
+between successive buckets: ε = Δln(P)/Δl. 
+• 
+Scope selector: all-India or a route; carrier filter; window 14/30/60 days. 
+• 
+The fitting itself is F126; the savings simulator is F125. 
+Done when. The fitted curve overlays the observed points, and cards match the API. 
+F082 — Carrier comparison 
+What it is. Compares airlines' pricing behaviour fairly. 
+How it works. 
+• 
+Two views: index lines per carrier (matched-product price change, rebased to 
+100 at the start of the window) and price levels (mean fare on the selected route 
+and lead), because a carrier can be expensive yet stable. 
+• 
+LCC versus FSC grouping bands. Carrier share from DGCA data shown beside 
+each carrier. 
+• 
+Small multiples per route optional. 
+• 
+Sample-size caution: series with fewer than 30 daily matched products are 
+dashed and annotated. 
+Done when. Carrier series match CARRIER:{iata} API output and the caution 
+appears for thin samples. 
+F083 — Channel comparison (airline versus travel platform) 
+What it is. Shows whether the same flight costs more on travel platforms. 
+How it works. 
+• 
+Spread = OTA total − airline-direct total, for matched flights only, shown in 
+₹ and %. 
+• 
+Charts: spread over time, spread distribution histogram, and a parity scoreboard 
+(share of matched flights where an OTA is higher, equal or lower, by OTA). 
+• 
+Convenience fees are shown separately, not blended into the spread. 
+• 
+Caution overlay when matched n < 30. 
+Done when. Spread values equal manual computation on seeded matched flights. 
+F084 — Fare component stack chart 
+What it is. Shows how much of the fare is base, fuel and taxes over time. 
+How it works. 
+• 
+Stacked area of mean ₹ per component, with a toggle to percent share; filters for 
+route and lead bucket. 
+• 
+The convenience fee appears as a separate dotted line. 
+• 
+Uses the route_price_daily continuous aggregate, so it loads quickly. 
+• 
+Annotations for fuel-surcharge events (F140). 
+Done when. Component sums equal mean total within rounding. 
+F085 — "What moved" contribution waterfall 
+What it is. Answers "which routes drove today's change?" in one chart. 
+How it works. 
+• 
+contribution_r = w_r × (I(r,t) − I(r,t−1)) in index points, sorted by 
+absolute size. Top 8 shown, remainder grouped as "Other routes". A toggle 
+switches the breakdown to lead buckets. 
+• 
+Invariant: contributions sum to the change in APIx. When routes drop out or 
+renormalisation changes weights, the difference appears as an explicit "Coverage 
+effect" bar so the total always reconciles. 
+• 
+Date selector; clicking a bar opens the Route page (or bucket view). 
+• 
+Powers the driver clause of the headline sentence (F017). 
+Done when. The sum of bars equals the APIx change to four decimals in tests, 
+including days with missing routes. 
+F086 — Live quote ticker 
+What it is. A scrolling feed of fares as they arrive, adding life and proof of real-time 
+operation. 
+How it works. 
+• 
+Subscribes to quotes.live (server-sampled to at most 1 per second). Each row: 
+route, carrier, lead bucket, price, arrow (up/down/flat versus the previous quote 
+of the same product), time, origin tag. 
+• 
+Keeps the last 20 rows; pauses on hover or focus; a Pause/Resume button; route 
+filter. 
+• 
+Screen readers: not announced automatically (avoids spam); a "Read latest" 
+button announces the newest row. 
+• 
+Collapsible and remembers its state. 
+Done when. Ticker updates within 2 seconds of new quotes and never exceeds 1 row 
+per second. 
+F087 — Real-time WebSocket ticks 
+What it is. Pushes live numbers to the browser. 
+How it works. 
+• 
+Connect: POST /api/v1/auth/ws-ticket returns a single-use 30-second 
+ticket; the client opens wss://…/api/v1/stream?ticket=…. The server 
+validates origin, ticket and session. 
+• 
+Subscribe: messages {"op":"subscribe","channels":[…]}; each channel is 
+authorised by permission. 
+• 
+Server: subscribes to Redis Pub/Sub, conflates to at most one message per 
+channel per 250 ms (keeping the latest), and keeps a bounded per-connection 
+queue of 100 messages (drop-oldest, with a SLOW_CONSUMER notice). 
+• 
+Client: a useLiveSeries hook patches the TanStack Query cache so charts 
+append points and tiles update without refetching. Messages are ordered 
+by event_id and duplicates ignored. 
+• 
+Efficiency: one shared socket per browser (leader tab via BroadcastChannel) 
+rather than one per tab. 
+• 
+Limits: 10 connections per user, 50 channels per connection, 4 KB max message. 
+Done when. 500 concurrent simulated clients receive ticks with p95 delivery under 1 
+second, and slow clients don't affect others. 
+F088 — Reconnect and resume 
+What it is. No missed updates after a network drop. 
+How it works. 
+• 
+Every event has an event_id (a Redis Stream ID). The server keeps the last 
+~10,000 events per series in apix:stream:{series}. 
+• 
+On reconnect the client sends resume_from per channel; the server replays 
+newer events and acknowledges with replay_count. 
+• 
+If the gap is older than retention, the server 
+sends {"op":"resync_required"} and the client refetches via REST and then 
+resumes. 
+• 
+Backoff 1, 2, 4, 8, 16, 30 s with jitter; browser online/offline events shortcut 
+waiting (F016). 
+Done when. Dropping the connection for 60 seconds during a simulated stream yields 
+a chart identical to one that never disconnected. 
+F089 — Alerts board with threshold alerts 
+What it is. The alerts page and the basic, rule-based alerts behind it. (Rule builder is 
+F120, statistical detection is F122.) 
+How it works. 
+• 
+Built-in rules: APIx day-over-day move above X% (default 1.5%), route move 
+above Y% (default 4%), coverage below 90%, source unhealthy, freshness stale, 
+quarantine backlog above N. 
+• 
+States: NEW → ACKNOWLEDGED → RESOLVED, plus FALSE_POSITIVE. Actions: 
+acknowledge, assign to a user, add a note, mark not an issue, open in Explorer. 
+• 
+Cooldown and dedupe: the same rule and scope does not re-fire within a 
+cooldown (default 6 hours); repeated triggers increment a counter on the open 
+alert. 
+• 
+Auto-resolve: when the condition has cleared for two consecutive evaluations. 
+• 
+Board UI: three columns, cards with plain sentence, severity icon plus label, 
+scope, mini-chart, age. 
+• 
+New alerts arrive live on alerts.org and create notifications (F035). 
+• 
+All state changes are audited. 
+Done when. Each built-in rule fires on a simulated condition, respects cooldown, and 
+auto-resolves after recovery. 
+F090 — Data Health summary strip 
+What it is. A compact status line for the health of data collection, visible to ops roles on 
+Overview and at the top of Data Health. 
+How it works. 
+• 
+Four indicators: Sources (healthy ÷ enabled, for example 8 of 
+8), Coverage (latest, for example 96%), Last cycle (result and time, for 
+example "Complete 06:52"), Quarantine backlog (open issues count). 
+• 
+Overall status: Good (all green), Attention (any amber), Problem (any red), 
+with the rule for each indicator defined in configuration. 
+• 
+Endpoint GET /api/v1/health/summary cached 15 s; also pushed 
+on ops.cycle. 
+• 
+Clicking any indicator opens the relevant Data Health tab. 
+• 
+Non-technical users see only the overall word and colour. 
+Done when. Simulating a source outage moves the strip from Good to Attention within 
+one refresh. 
+ 
+Schema additions for Tier 2 (add to migrations) 
+sql 
+CREATE TABLE product ( 
+  product_key  TEXT PRIMARY KEY, 
+  level        CHAR(1) NOT NULL CHECK (level IN ('A','B')),   -- ladder 
+level 
+  route_id     SMALLINT NOT NULL REFERENCES ref_route(route_id), 
+  first_seen   DATE NOT NULL, last_seen DATE NOT NULL, 
+  active       BOOLEAN NOT NULL DEFAULT TRUE 
+); 
+CREATE TABLE base_price ( 
+  product_key  TEXT NOT NULL, dow SMALLINT NOT NULL CHECK (dow BETWEEN 0 
+AND 6), 
+  component    TEXT NOT NULL DEFAULT 'TOTAL', 
+  methodology_id SMALLINT NOT NULL, 
+  p0 NUMERIC(10,2) NOT NULL, n_obs INT NOT NULL, estimated BOOLEAN NOT 
+NULL DEFAULT FALSE, 
+  PRIMARY KEY (product_key, dow, component, methodology_id) 
+); 
+CREATE TABLE chain_link ( 
+  link_id SERIAL PRIMARY KEY, effective_from DATE NOT NULL, 
+  old_basket SMALLINT NOT NULL, new_basket SMALLINT NOT NULL, 
+  link_factor NUMERIC(14,8) NOT NULL, computed_at TIMESTAMPTZ NOT NULL 
+DEFAULT now() 
+); 
+CREATE TABLE cell_stats ( 
+  cell_key TEXT PRIMARY KEY,            -- route|bucket|dow 
+  median NUMERIC(10,2) NOT NULL, mad NUMERIC(10,4) NOT NULL, 
+  n INT NOT NULL, updated_at TIMESTAMPTZ NOT NULL 
+); 
+CREATE TABLE event_calendar ( 
+  event_id SERIAL PRIMARY KEY, name TEXT NOT NULL, category TEXT NOT NULL, 
+  start_date DATE NOT NULL, end_date DATE NOT NULL, 
+  amplitude NUMERIC(5,3), width_days NUMERIC(5,2), 
+  direction TEXT NOT NULL DEFAULT 'BOTH', source_note TEXT, created_by 
+UUID 
+); 
+CREATE TABLE tax_rule ( 
+  rule_id SERIAL PRIMARY KEY, component TEXT NOT NULL, 
+  rate_or_amount NUMERIC(10,4) NOT NULL, kind TEXT NOT NULL CHECK (kind IN 
+('RATE','FIXED')), 
+  applies_to TEXT NOT NULL, airport_id SMALLINT, 
+  valid_from DATE NOT NULL, valid_to DATE, source_note TEXT NOT NULL 
+); 
+CREATE TABLE fare_family_map ( 
+  source_code TEXT NOT NULL, raw_label TEXT NOT NULL, 
+  normalised_family TEXT NOT NULL, tier SMALLINT NOT NULL, 
+  PRIMARY KEY (source_code, raw_label) 
+); 
+CREATE TABLE sim_route_params ( 
+  route_id SMALLINT PRIMARY KEY REFERENCES ref_route(route_id), 
+  base_fare NUMERIC(10,2) NOT NULL, tau NUMERIC(6,2) NOT NULL DEFAULT 9.0, 
+  lead_amp NUMERIC(6,3) NOT NULL DEFAULT 1.05, volatility NUMERIC(6,4) NOT 
+NULL DEFAULT 0.02, 
+  dow_profile JSONB NOT NULL, season_profile JSONB NOT NULL, 
+  calibrated BOOLEAN NOT NULL DEFAULT FALSE, calibration_note TEXT 
+); 
+CREATE TABLE sim_truth ( 
+  raw_key TEXT PRIMARY KEY, defect_type TEXT NOT NULL, injected_at 
+TIMESTAMPTZ NOT NULL 
+); 
+ 
+Where we are 
+Tiers 1 and 2 (F001–F090) are locked. The engine and core dashboards are fully 
+specified: a judge could follow the path from a fare to a number to a chart. 
+• 
+Next: Tier 3, F091–F135: provenance and reproduce, methodology 
+governance and approvals, the back-test lab, reports and exports, the API and 
+webhooks, the Data Health consoles, anomaly detection and explanation, 
+elasticity fitting and the savings simulator, the audit viewer, admin, sessions and 
+MFA. 
+• 
+Then Tier 4, F136–F160: nowcasting, advanced detection, AI-assisted 
+features, multi-tenant, compliance and scale. 
+Say "CONTINUE TO TIER 3" when you're ready. 
+CONTINUE TO TIER 3 
+AeroIndex Feature Register: Tier 3 (F091–F135) 
+Tier 3 is the advanced layer: the features that make the platform trustworthy, 
+governable, deliverable and operable. This is where a statistics office, an auditor or an 
+acquirer's technical reviewer decides whether it is a product or a prototype. Same format 
+as before: What it is / How it works / Data & API / Edge cases / Done when. 
+New tables introduced here (DDL collected at the 
+end): index_run, reproduction_check, methodology_preview, alert_rule, saved_
+view, chart_note, webhook_endpoint, webhook_delivery, api_usage_daily, circu
+it_state, user_session. 
+ 
+A. Trust, Provenance and Governance 
+F091 — Provenance Drawer 
+What it is. Click any number or chart point and a side drawer shows exactly how it was 
+made. This is the "Prove" layer of the interface. 
+How it works. 
+• 
+Opens from KPI tiles, chart points, table cells and report figures. Endpoint: GET 
+/api/v1/index/provenance/{series_key}/{date}. 
+• 
+Header: value, date, status pill (Provisional, Official, Revised), methodology 
+version, basket version, coverage, code version, "computed at" time. 
+• 
+Contribution table: each route with its weight, route index, contribution in 
+points, and number of matched products. A toggle switches to lead-bucket 
+contributions. 
+• 
+Quality summary: share of quotes rejected, flagged and imputed; number of 
+low-coverage cells; share of spliced products. 
+• 
+Sample quotes: ten representative quotes (highest-contribution first), each 
+linking to the Quote Inspector (F093). 
+• 
+Inputs digest: a SHA-256 over the sorted list of (product_key, daily 
+price) pairs used, stored in index_run.input_digest. Two computations with 
+the same digest must give the same value. 
+• 
+Actions: Reproduce (F092), Export evidence (JSON or PDF), Copy citation. The 
+citation text reads: APIx OVERALL, 21 Sep 2026 = 117.79 (methodology 
+M1.0, basket BASKET-2026-A, version 1, retrieved 22 Sep 2026 
+08:50 IST). 
+• 
+Permissions: users with series:read see the summary and contributions; 
+only those with prices:read see quote-level rows. 
+Data / API. New table index_run(run_id, obs_date, methodology_id, 
+basket_id, code_version, input_digest, status, computed_at). One row is 
+written per freeze and per revision. 
+Edge cases. For FLASH points the drawer shows the current provisional state and says 
+so. Dates older than the raw retention window still show summaries (which are kept 
+forever) but note that quote samples may be unavailable. 
+Done when. Every published point resolves to a drawer, contributions sum to the 
+value (within rounding), and the citation text is correct. 
+F092 — Reproduce this number 
+What it is. A button that recomputes a published value from stored data and proves it 
+matches. 
+How it works. 
+1. POST /api/v1/index/provenance/{series}/{date}/reproduce starts the 
+check (synchronous for one date, asynchronous for ranges). 
+2. The engine runs the same code path as production in read-only replay mode 
+(F102): loads the stored clean quotes for that day, the base prices, the 
+methodology version and basket recorded in index_run, and recomputes cells, 
+routes and overall. 
+3. Compares each level (cell, route, overall) with the stored values, tolerance 1e-6. 
+4. Result: a green tick "Reproduced exactly" with the digest and timing, or a diff 
+table showing which cells differ and by how much. 
+5. Outcome is stored in reproduction_check(check_id, run_id, ok, 
+max_abs_diff, checked_by, checked_at, code_version). 
+• 
+Determinism rules: prices held as exact decimals; logs computed in float64 
+with a fixed summation order (sorted by product key); stable sorting; no 
+dependence on wall-clock time or random state. 
+• 
+If the code version has changed since the run, the check uses the current code 
+and states this. A mismatch is then classified as either "code change" or "data 
+changed since" (for example, a later revision). 
+Edge cases. Revised days reproduce against the latest version by default, with a 
+selector to reproduce an earlier vintage. 
+Done when. Reproducing 100 random seeded days yields exact matches, and 
+deliberately corrupting a stored quote produces a failing check with a precise diff. 
+F093 — Quote Inspector with lineage 
+What it is. A detailed view of one fare observation and everything that happened to it. 
+How it works. A modal opened from any quote row, containing: 
+• 
+Facts: flight, carrier, route, departure, lead days and bucket, fare family, source 
+and channel, seats left, data origin. 
+• 
+Fare breakdown bar: base, fuel, taxes, fee, total, with an "estimated split" 
+marker if applicable. 
+• 
+Rule decisions: a list of R01 to R12, each showing Pass, Flag or Reject with the 
+parameters used. 
+• 
+Outlier context: its robust z-score plotted against the histogram of the cell's 
+trailing 14-day distribution. 
+• 
+Index effect: this quote's ln(relative) and how much it moved its cell (in 
+points), so users can see that one quote rarely matters. 
+• 
+Raw payload viewer: the captured JSON, rendered as text nodes only (never 
+HTML), collapsible, capped at 200 KB with a "download full" link, sensitive fields 
+redacted. Viewing a raw payload writes an audit event. 
+• 
+Lineage graph: task, capture (hash), raw row, clean row, cell, route, overall, 
+each a clickable node with its row ID. 
+Edge cases. Simulated quotes show "Generated by simulator" in place of a payload. 
+Rejected quotes (from quarantine) show why they were rejected and who reviewed 
+them. 
+Done when. Any quote in the table opens with a complete lineage, and the payload 
+viewer never executes or renders markup from the payload. 
+F094 — Revision system 
+What it is. Controlled correction of published numbers, with full history. Published 
+values are never silently overwritten. 
+How it works. 
+• 
+Triggers: accepting quarantined data (F060), late data, a parser fix, a weight 
+update, a methodology change, a discovered error. 
+• 
+Process: an authorised user opens "Revise" on an affected day (modal M6). The 
+system recomputes the day (and any dependants such as weekly and monthly 
+rollups), creates version n+1 with status REVISED, keeps version n intact, and 
+writes an apix_revision row (old value, new value, reason code, note, 
+approver). 
+• 
+Reason 
+codes: LATE_DATA, PARSER_FIX, DQ_OVERRIDE, WEIGHT_UPDATE, METHOD_CHANG
+E, ERROR_CORRECTION. 
+• 
+Revision policy (configurable, displayed on the Methodology page): routine 
+revisions are allowed within 14 days of publication with one approver; older 
+revisions require a senior approver and are labelled "Late revision". 
+• 
+Vintages: every API series endpoint accepts as_of=<timestamp> and returns 
+the values as they were published at that time. This is the standard "real-
+time database" practice in official statistics, letting users see how estimates 
+evolved and reproduce past reports exactly. 
+• 
+Visibility: revised points show a dot on charts with old, new and reason on 
+hover; the series table has a revision column; downstream reports show a 
+revision note. 
+• 
+Notifications: subscribers receive index.revised events (F113) and an in-app 
+notification. 
+Done when. A revision creates a new version without altering the old, as_of returns 
+the earlier value, and rollups update consistently. 
+F095 — Publish and freeze workflow 
+What it is. The controls around making a value official. 
+How it works. 
+• 
+Automatic freeze at 23:30 IST (F071). 
+• 
+Manual freeze or override by an APPROVER: opens modal M7 showing the 
+check results (coverage, FLASH-versus-recompute drift, open critical alerts, 
+quarantine backlog). If a check fails, the approver can override with a mandatory 
+written reason; overrides are marked on the published value ("Published with 
+override"). 
+• 
+Hold state: a day can be placed on HOLD (for example while investigating), 
+which blocks automatic publication and notifies approvers. A hold must be 
+released or resolved within 24 hours or it escalates. 
+• 
+Publication calendar: a list of upcoming and past releases (daily values, 
+weekly bulletins, monthly releases) with status. 
+• 
+Monthly release workflow: the monthly release moves through Draft (auto-
+generated after the last daily freeze) to Review to Published, with the report 
+(F106) attached. 
+• 
+Withdrawal is not offered: a wrong published value is corrected by a revision, 
+preserving history. 
+Done when. Overrides require reasons and are visible, holds block publication, and 
+every action is audited. 
+F096 — Methodology manager 
+What it is. The screen where statisticians define and govern how the index is built. 
+How it works. 
+• 
+Tabs: Overview (plain-language explanation and diagram of the five calculation 
+steps), Basket and weights, Lead-time weights, Parameters, Versions and 
+approvals. 
+• 
+Basket and weights: a table of routes with DGCA passengers, computed 
+weights, an include toggle, carrier shares; a treemap of weights; import from CSV 
+(F067) with validation. 
+• 
+Lead-time weights: sliders that keep the total at 100%, with numeric entry and 
+a "reset to default" button. 
+• 
+Parameters: outlier thresholds, coverage minimums, imputation limit, channel 
+policy, base period, fare-family basis, cap on relatives. 
+• 
+Editing model: the active version is read-only. "Create draft" clones it 
+into DRAFT, which can be edited freely by METHODOLOGIST. All edits validate live 
+(weights sum to 1, thresholds ordered correctly). 
+• 
+Draft changes never affect published numbers until approved and activated. 
+Done when. A draft can be created, edited and validated, and cannot alter the active 
+version. 
+F097 — Change impact preview 
+What it is. Shows what a proposed change would do to past numbers before anyone 
+approves it. 
+How it works. 
+• 
+POST /api/v1/methodology/{id}/impact-preview runs a shadow 
+computation (via replay, F102) over the last 90 days (configurable) using the 
+draft parameters, writing to an isolated sandbox schema. 
+• 
+Output: an overlay chart (active versus draft series), summary statistics (mean 
+absolute difference in points, maximum difference and date, effect on YoY and 
+MoM), route contribution changes, coverage changes, and a plain-language 
+sentence ("This change would have raised APIx by 0.3 points on average, with a 
+maximum of 0.9 on 12 Sep"). 
+• 
+Runs asynchronously with a progress bar (typically under 2 minutes at seeded 
+scale), with a hard time limit and cancel button. 
+• 
+Results are stored in methodology_preview and attached to the approval 
+request so approvers see them. 
+Done when. A weight change produces a preview whose numbers match a manual 
+recomputation, and nothing in production tables changes. 
+F098 — Two-person approval workflow 
+What it is. Nobody can change the official method alone. 
+How it works. 
+• 
+States: DRAFT → IN_REVIEW → APPROVED → ACTIVE (with an effective date at a 
+month boundary), or REJECTED / WITHDRAWN. 
+• 
+Rules: the author cannot approve their own change (409 
+SELF_APPROVAL_FORBIDDEN); at least one APPROVER must approve; a required 
+checklist (impact preview attached, documentation updated, effective date 
+chosen) must be complete before submitting. 
+• 
+Approver actions: approve, request changes, or reject, each with a comment. 
+Approval requires recent authentication (password or passkey re-entry within 
+10 minutes). 
+• 
+Notifications to approvers on submission and to the author on decision. Stale 
+drafts (30 days without activity) are flagged. 
+• 
+Activation at the effective date triggers chain-linking (F073) automatically and 
+records the version as ACTIVE, superseding the previous one. 
+• 
+Every transition is written to the audit log. 
+Done when. Self-approval is refused, unapproved changes cannot activate, and 
+activation creates the chain link. 
+F099 — Methodology versioning and diff 
+What it is. Every method the platform ever used is preserved and comparable. 
+How it works. 
+• 
+Versions are immutable and labelled M{major}.{minor}: a major change alters 
+formulas, basket or structure; a minor change alters parameters. 
+• 
+Every published value stores its methodology_id. 
+• 
+Diff view: side-by-side comparison of any two versions: parameter table with 
+changes highlighted, weights table with deltas, and impact statistics when a 
+preview exists. 
+• 
+Changelog page: a readable history ("M1.1 (from 1 Jan 2027): weights updated 
+to FY26 DGCA traffic. Effect on index: +0.2 points on average"). 
+• 
+Rollback: never edits history. It creates a new version identical to an earlier 
+one, activated through the normal approval path. 
+Done when. Any two versions can be diffed, and rollback produces a new version 
+rather than mutating an old one. 
+ 
+B. Validation 
+F100 — Back-test Lab 
+What it is. Proves the index tracks reality by comparing it against the official DGCA 
+benchmark, as the problem statement requires. 
+How it works. 
+1. Configure: window (default last 30 days), methodology version, data origin, 
+benchmark (DGCA_NATIONAL or a route). 
+2. Run: POST /api/v1/validation/backtests (returns 202 and a run ID). The 
+runner replays the window through the real pipeline using the Replay adapter 
+into an isolated schema, so production data is untouched. 
+3. Progress: a bar driven by the backtest.{run_id} channel through 
+states QUEUED → REPLAYING → COMPUTING → COMPLETE. 
+4. Results: overlay chart (APIx and DGCA, both rebased), metric cards (F103), a 
+residual chart, and a table of the largest discrepancies with a notes field for 
+hypotheses. 
+• 
+Honest comparison design: DGCA figures are monthly, so a 30-day window 
+contains about one benchmark data point. The lab therefore offers two 
+comparisons: (a) a daily overlay using linearly interpolated benchmark values 
+(interpolated points shown hollow), for visual sanity only, and (b) a monthly 
+comparison of APIx monthly averages with DGCA monthly averages, which 
+becomes statistically meaningful once at least 6 months exist. A banner states 
+this: "30 days gives one benchmark point. Use 6 months or more for statistical 
+validation." 
+• 
+When the data origin is SIMULATED, a persistent banner says validation is 
+illustrative. 
+• 
+Runs are saved; two runs can be compared side by side. 
+Done when. A back-test completes end to end on the seeded data with metrics and 
+overlay, and the banners appear in the right situations. 
+F101 — DGCA benchmark uploader 
+What it is. Brings official benchmark data into the platform safely. 
+How it works. 
+• 
+Downloadable CSV template: period_month (YYYY-MM-01), route (blank 
+for national), avg_fare_inr, source_doc, source_url. 
+• 
+Upload dialog validates before committing: file size under 5 MB, UTF-8, exact 
+header match, month format, positive numeric fares, known route codes, 
+duplicates. A preview table shows accepted and rejected rows with reasons; the 
+user confirms to commit. 
+• 
+Existing periods are upserted as new versions (benchmark_dgca_fare keeps 
+history), with the uploader and time recorded. 
+• 
+Parsing happens in a sandboxed worker; cells beginning with formula characters 
+are rejected; the file is never opened by spreadsheet software on the server. 
+• 
+source_doc is mandatory, so every benchmark point is citable. 
+Done when. A malformed file is rejected with row-level messages, and a valid file 
+appears in the Validation Lab. 
+F102 — Replay adapter and deterministic replay 
+What it is. The ability to re-run history through the pipeline exactly, for back-tests, 
+impact previews and reproduction. 
+How it works. 
+• 
+The ReplayAdapter reads stored raw events (or stored captures for live data) in 
+strict order (scraped_at, raw_id) and feeds them to the pipeline with 
+a virtual clock, so time-dependent rules behave as they did originally. 
+• 
+All writes go to an isolated schema replay_{run_id} (tables created from 
+templates), so production tables are never touched. Parameter overrides (draft 
+methodology, rule thresholds) apply only inside the sandbox. 
+• 
+Same code, same rules: nothing in replay is special-cased. 
+• 
+The sandbox schema is dropped after a retention period (default 7 days) or on 
+demand. 
+• 
+Speed: unthrottled (the seeded 60-day dataset replays in a few minutes on the 
+demo VM). 
+Done when. Replaying a day without overrides reproduces stored outputs exactly, and 
+production tables show zero writes during replay (asserted by a test). 
+F103 — Validation metrics 
+What it is. The numbers that summarise agreement with the benchmark, defined 
+carefully so they are not misleading. 
+How it works. 
+Metric 
+Definition 
+Why this form 
+Correlation of 
+changes 
+Pearson correlation of period-on-period % 
+changes 
+Correlating levels of two trending 
+series is nearly always high and 
+proves little 
+Level error 
+(MAPE) 
+Mean absolute percentage error between 
+rebased series 
+Shows closeness of levels after 
+aligning to a common base 
+Direction 
+agreement 
+Share of periods where both series move the 
+same way 
+Intuitive, robust to scale 
+Lag 
+Shift (days or months) that maximises cross-
+correlation, within ±7 days (daily) or ±2 
+months (monthly) 
+Shows whether the index leads the 
+benchmark 
+Metric 
+Definition 
+Why this form 
+Tracking error 
+Standard deviation of the difference in % 
+changes 
+Stability of agreement 
+Bias 
+Mean difference in % changes 
+Systematic over- or under-statement 
+• 
+Each metric has a bootstrap 90% confidence interval (200 resamples) and the 
+sample size. With fewer than 6 monthly points, the interface shows the values but 
+labels them "Not statistically meaningful". 
+• 
+Configurable Pass / Watch / Fail thresholds (defaults: correlation of changes at 
+least 0.7, direction agreement at least 75%) with the explanation shown in place. 
+• 
+Per-route metrics when route-level benchmarks exist. 
+Done when. Metric functions match a reference implementation on a fixture dataset, 
+and small samples are labelled correctly. 
+ 
+C. Reports and Exports 
+F104 — Report builder and templates 
+What it is. Create formal, repeatable reports without programming. 
+How it works. 
+• 
+Template library: Weekly Bulletin, Monthly Release, MPC Briefing Pack, 
+Festival Season Watch, Data Quality Summary, Route Deep-Dive. Templates are 
+versioned and stored with the platform; custom templates are a production 
+feature. 
+• 
+Builder: choose template, period, series, basis, sections (checkboxes: headline, 
+KPIs, trend, route table, heatmap, elasticity, components, anomalies, 
+methodology note, coverage statement, revision notes), formats and language. 
+• 
+Preview rendered as it will appear, with the correct data-origin and provisional 
+watermarks. 
+• 
+Narrative text comes from the deterministic headline and contribution 
+generators (F017, F085), so every sentence is traceable to data. No free-text 
+model output is placed in official reports. 
+• 
+Charts are rendered server-side (matplotlib) with the same colour tokens. 
+• 
+Definitions are saved to report_definition and can be reused, duplicated or 
+scheduled. 
+• 
+Only OFFICIAL data by default; "include provisional" requires ticking a box 
+and adds a "PROVISIONAL" watermark. 
+Done when. Each template renders from seeded data in English and Hindi, and 
+provisional data never appears without the watermark. 
+F105 — Scheduled report delivery 
+What it is. Reports that arrive on time without anyone pressing a button. 
+How it works. 
+• 
+Schedules: a cron builder with presets (weekly Monday 09:00 IST, monthly on 
+the 5th) in IST, or event triggers such as "after each official freeze" or "after 
+monthly release approval". 
+• 
+Delivery: email (a secure link by default, attachments only for small files under 
+an organisation policy), SFTP upload, or webhook. 
+• 
+Recipient controls: recipients must belong to allowed domains (organisation 
+setting); external addresses need approval. 
+• 
+Reliability: each run stores status and artefacts in report_run; failed deliveries 
+retry (5 min, 30 min, 2 h) and then notify the owner; a delivery log shows each 
+attempt. 
+• 
+Pause, resume and "run now" controls; a calendar view shows upcoming runs. 
+Done when. A scheduled report runs at the right time in IST, delivers, logs, and retries 
+a simulated failure. 
+F106 — PDF bulletin generator 
+What it is. The polished, printable bulletin for briefings. 
+How it works. 
+• 
+WeasyPrint renders HTML and print CSS to PDF (A4). Layout: page 1 headline 
+sentence, KPI row, trend chart; page 2 route table and heatmap; page 
+3 elasticity chart and component mix; page 4 methodology note, coverage 
+statement, data origin, revision notes. 
+• 
+Fonts embedded, including Noto Sans Devanagari for Hindi editions. 
+• 
+Header shows product, report name and period; footer shows page numbers, 
+"Data as of", methodology version and a short checksum (F108). 
+• 
+Watermarks: "PROVISIONAL" and "SIMULATED DATA" when applicable. 
+• 
+Accessibility: document language set, headings structured, chart alt text included 
+(best effort with WeasyPrint's tagged output). 
+• 
+Generation target: under 15 seconds for a four-page bulletin. 
+Done when. The PDF renders identically across runs for the same data, fonts embed 
+correctly, and watermarks appear when required. 
+F107 — XLSX, CSV and SDMX-JSON exports 
+What it is. Data in the formats analysts and statistical systems use. 
+How it works. 
+• 
+XLSX: sheets Summary, Series, Routes, Components, Metadata (methodology, 
+basket, coverage, data origin, retrieval time), Notes (revisions, caveats). Numbers 
+stored as numbers, dates as dates, freeze panes, column widths set. 
+• 
+CSV: as in F032 for any dataset. 
+• 
+SDMX-JSON: GET /api/v1/sdmx/data/{flow}/{key} returns a data 
+message with dimensions such as frequency, series and basis, and observation 
+attributes for status. A suggested mapping: OFFICIAL to normal, FLASH to 
+provisional, imputed values to estimated. Confirm the exact dataflow 
+structure and code lists with MoSPI's Price Statistics Division before 
+integration, because agencies specify their own. 
+• 
+All text cells go through the formula-injection guard. 
+Done when. XLSX opens cleanly in Excel and LibreOffice with correct types, and the 
+SDMX output validates against the agreed structure definition. 
+F108 — Report integrity (checksum and signature) 
+What it is. Recipients can prove a report is authentic and unchanged. 
+How it works. 
+• 
+On generation, compute SHA-256 of each artefact; store 
+in report_run.content_sha256 and in a manifest JSON 
+(report_manifest.json) listing files, hashes, data-as-of, methodology and code 
+version. 
+• 
+Digital signature: the manifest is signed with an Ed25519 key held in the key-
+management service; the detached signature file accompanies the report. The 
+public key is published on a verification page. 
+• 
+Verification page (/verify): upload a file (or paste its hash); the page reports 
+Valid, Modified or Unknown, plus the report's metadata when valid. 
+• 
+The short hash appears in each PDF footer. 
+• 
+Key rotation is documented, with old public keys retained for verifying old 
+reports. 
+Done when. Modifying one byte of a report makes verification fail, and valid reports 
+verify. 
+ 
+D. API and Integrations 
+F109 — REST API v1 
+What it is. The programmatic interface that lets NSO/MoSPI and RBI query APIx 
+directly. 
+How it works. 
+• 
+Base path /api/v1, OpenAPI 3.1 at /openapi.json, interactive docs at /docs. 
+Endpoints as catalogued in Part 2 Section 5. 
+• 
+Conventions: JSON, ISO dates, cursor pagination, standard error envelope 
+with a fixed code set, Idempotency-Key on creating POSTs, X-Request-Id on 
+every response. 
+• 
+Caching: series endpoints return ETag derived from the latest data version and 
+honour If-None-Match (returns 304 with no body), reducing load for polling 
+clients. 
+• 
+Compression: gzip and brotli. 
+• 
+Vintage access: as_of parameter (F094). 
+• 
+Field selection: fields= for lighter payloads. 
+• 
+Compatibility aliases: /api/index and /api/prices. 
+• 
+Sandbox: a separate base URL with simulated data and instant keys for 
+developers. 
+• 
+Automatic contract tests with Schemathesis in CI; SDKs generated from the 
+OpenAPI file for Python and JavaScript. 
+• 
+Deprecation policy: a minimum of six months 
+with Deprecation and Sunset headers. 
+Done when. Every documented endpoint passes contract tests, and ETag round trips 
+return 304. 
+F110 — API keys and scopes 
+What it is. Safe, controllable machine access. 
+How it works. 
+• 
+Creation: Developers page, "Create key": name, scopes 
+(series:read, prices:read, analytics:read, reports:read, stream:subscr
+ibe, ingest:write), optional IP allow-list (CIDR), expiry (default 1 year, 
+maximum 2). 
+• 
+Format: apx_live_<8-char prefix>_<32 random bytes base32>. Sandbox 
+keys start with apx_test_. The distinctive prefix helps automated secret 
+scanners detect leaks. 
+• 
+Storage: only the prefix and an Argon2id hash of the secret. The full secret is 
+displayed once, with a copy button and a warning. 
+• 
+Verification: look up by prefix, constant-time hash comparison, then check 
+scopes, IP allow-list, expiry and revocation. 
+• 
+Rotation: creates a new key while the old remains valid for a chosen overlap 
+(default 7 days). 
+• 
+Management: list with last-used time, last IP, usage; revoke immediately. Keys 
+can never be used for admin functions. 
+• 
+Every creation, rotation and revocation is audited and notified to the owner. 
+Done when. Revoked keys fail within 5 seconds, and the database contains no 
+recoverable secrets. 
+F111 — API explorer and code snippets 
+What it is. Try the API in the browser, and copy working code. 
+How it works. 
+• 
+Generated from the OpenAPI file: endpoint list grouped by tag, parameter forms 
+with validation, and a request builder. 
+• 
+Authentication: the explorer uses a short-lived (15-minute), read-only explorer 
+token issued to the signed-in user, or the user pastes a key held only in memory 
+(never stored). Secrets are never written to local storage. 
+• 
+Response viewer with status, headers (rate-limit headers highlighted), timing 
+and pretty-printed body. 
+• 
+Snippets for cURL, Python (requests) and JavaScript (fetch), rendered with 
+the current parameters. 
+• 
+Sandbox toggle, request history for the session, and a "copy as curl" button. 
+Done when. Every read endpoint can be called from the explorer, snippets run 
+unmodified, and no secret persists after closing the tab. 
+F112 — Rate limits, quotas and usage analytics 
+What it is. Fair use protection and visibility. 
+How it works. 
+• 
+Limiter: a token bucket implemented as an atomic Redis Lua script, keyed by 
+API key (and by user for session traffic). Defaults: 120 requests per minute with a 
+burst of 40, and 50,000 per day; export row quotas are tracked separately 
+(default 1,000,000 rows per day). 
+• 
+Responses: headers X-RateLimit-Limit/Remaining/Reset; exceeding 
+returns 429 with Retry-After. 
+• 
+Plans: limits are configuration per client, so tiers can differ. 
+• 
+Usage tracking: aggregated into api_usage_daily(client_id, day, 
+endpoint, calls, errors, bytes, p95_ms) from access logs. 
+• 
+Analytics view: calls per day, top endpoints, error rate, latency, quota meter. 
+Alerts at 80% and 100% of quota (F121). 
+• 
+Abuse signals: sudden 10× volume, bulk pagination sweeps, or repeated 4xx 
+responses raise a security notice (F158). 
+Done when. A load script exceeding the limit is throttled precisely, and usage numbers 
+match access logs. 
+F113 — Signed webhooks 
+What it is. The platform notifies external systems when things happen. 
+How it works. 
+• 
+Events: index.official.published, index.revised, anomaly.created, ale
+rt.created, report.completed, source.circuit_opened, source.circuit_
+closed. 
+• 
+Registration: URL (HTTPS only; validated against SSRF: DNS resolution, 
+blocked private, loopback, link-local and metadata address ranges, re-checked 
+after redirects), event selection, and a generated signing secret shown once. 
+• 
+Delivery: POST with JSON body and headers X-APIx-Event, X-APIx-
+Delivery, X-APIx-Signature: t=<unix>,v1=<hex HMAC-SHA256 of 
+"t.body">. Timeout 10 seconds; success is any 2xx. 
+• 
+Retries: at 1 min, 5 min, 30 min, 2 h, 6 h and 12 h (24 hours total), then marked 
+failed. Endpoints with 100 consecutive failures are automatically disabled with a 
+notification. 
+• 
+Log: webhook_delivery records status code, latency and the first 1 KB of the 
+response; Replay re-sends a delivery; Test sends a sample event. 
+• 
+Receivers are advised to verify the signature, reject timestamps older than 5 
+minutes, and de-duplicate by delivery ID (delivery order is not guaranteed). 
+• 
+Secret rotation supports a 24-hour dual-secret overlap. 
+Done when. A receiver verifying the signature accepts genuine deliveries and rejects 
+tampered ones, and SSRF attempts to internal addresses are refused. 
+F114 — WebSocket API channels 
+What it is. The documented streaming interface for external clients (the browser client 
+is F087). 
+How it works. 
+• 
+Endpoint wss://…/api/v1/stream, subprotocol apix.v1, authentication by 
+one-time ticket (browser) or by API key in the first message (server clients 
+with stream:subscribe scope). 
+• 
+Channel 
+catalogue: index.overall, index.route.{code}, quotes.live, alerts.org,
+ ops.source.{code}, ops.cycle, backtest.{run_id}. Each requires a specific 
+permission. 
+• 
+Messages: subscribe, unsubscribe, ping from the 
+client; ack, event, error, pong, notice, resync_required from the server, with 
+formats given in Part 2 Section 5.4. 
+• 
+Protocol rules: heartbeat every 20 s, maximum message size 4 KB, 10 
+connections per user, 50 channels per connection, close code 4401 on 
+authentication expiry, SLOW_CONSUMER notice on conflation. 
+• 
+Published protocol documentation with a runnable example client (Python and 
+JavaScript) and a test client page in the API console. 
+Done when. The example clients connect, subscribe, receive events, reconnect and 
+resume, using only the public documentation. 
+ 
+E. Operations Consoles 
+F115 — Source health grid 
+What it is. One card per data source, showing whether it is working. 
+How it works. 
+• 
+Card content: source name and channel, status pill (Healthy, Degraded, Circuit 
+open, Disabled), success rate over the last 20 tasks, median latency, block rate, 
+last success time, next scheduled run, adapter version, latest contract-test result, 
+contribution to coverage, and a 24-hour sparkline. 
+• 
+Status rules: Healthy at 90% success or better; Degraded at 60–90%; Circuit 
+open per F118. 
+• 
+Actions (role DATA_OPS): Pause, Resume, Run test search, each with a 
+confirmation modal stating consequences ("Pausing YATRA will reduce APIx 
+coverage from 96% to about 93%"). 
+• 
+Task Detail modal (M4): attempts timeline, proxy and profile, error code and 
+detail, failure screenshot, HAR summary, and Retry and Replay-parse buttons. 
+Done when. Cards reflect simulated outages within one refresh, and actions change 
+source state and are audited. 
+F116 — Pipeline monitor 
+What it is. Technical health of the data flow. 
+How it works. 
+• 
+Charts and numbers: messages per second per stage (collected, cleaned, 
+indexed), consumer lag in seconds per stage, queue depth, dead-letter and 
+quarantine counts, latency histogram from quote arrival to published tick (p50, 
+p95, p99), worker fleet status (instances, CPU, memory, active browser contexts), 
+cycle progress bar with ETA. 
+• 
+Data source: Prometheus metrics exposed through GET 
+/api/v1/ops/throughput, refreshed every 5 seconds over ops.cycle. 
+• 
+Thresholds mark amber and red (for example lag above 30 s), each linking to a 
+short runbook entry. 
+• 
+Time range selector (last hour, day, week). 
+Done when. Injecting a slow consumer makes lag rise and the panel turns amber. 
+F117 — Quality review console 
+What it is. Where data stewards see and resolve data quality issues. Builds on the 
+quarantine store (F060). 
+How it works. 
+• 
+Funnel: collected, parsed, deduplicated, validated, index-eligible, with counts 
+and drop percentages. 
+• 
+Rule chart: hits per rule for the selected period, split by action (flag, reject). 
+• 
+Trend: reject rate and flag rate over time, plus imputation rate. 
+• 
+Review queue: table with filters (rule, source, route, severity, age), row detail 
+with the context chart, and actions Accept, Reject, Bulk accept similar, Add 
+exception, each requiring a reason. 
+• 
+Evaluation panel (simulated data only): precision and recall per defect type 
+from the ground-truth harness (F048). 
+• 
+Export of the queue and decisions for audit. 
+Done when. Resolving issues updates the funnel and the affected day's recomputation 
+status. 
+F118 — Drift detector and circuit breaker 
+What it is. Notices when a source changes or breaks, and protects the index from bad 
+data. 
+How it works. 
+• 
+Signals: 
+1. Parse success rate over the last 20 tasks below 80%. 
+2. Structural fingerprint: a hash of the sorted set of JSON key paths (or 
+DOM landmark selectors) from each response; a new fingerprint that 
+persists for 3 tasks indicates layout or API change. 
+3. Block rate (CAPTCHA, 403, 429) of 3 consecutive tasks. 
+4. Canary searches hourly against golden expectations (a known route and 
+date must return a plausible number of offers within plausible price 
+bounds). 
+• 
+Circuit states in circuit_state(source_id, state, opened_at, reason, 
+evidence): CLOSED, OPEN, HALF_OPEN. 
+• 
+OPEN: the planner skips the source; the system computes and displays 
+the coverage impact ("APIx coverage would fall from 96% to 88%; weights 
+renormalised"); notifications and an alert are created; the drift evidence (sample 
+payload, fingerprint difference) is attached. 
+• 
+HALF_OPEN: after a cool-down (default 30 minutes) the system sends 3 probe 
+searches. Three successes close the circuit; a failure re-opens it with a longer 
+cool-down. 
+• 
+Manual override by DATA_OPS (force open or close) with a reason. 
+Done when. A simulated schema change opens the circuit within the configured 
+number of tasks, coverage impact is shown, and recovery closes it automatically. 
+F119 — Coverage matrix 
+What it is. A grid showing how complete the data is. 
+How it works. 
+• 
+Rows = routes, columns = lead buckets. Each cell shows matched ÷ 
+planned for the selected day, coloured green at 95% or above, amber 60–95%, 
+red below 60%, hatched when the cell was excluded. 
+• 
+Tabs: all sources combined, or per source. A trend view shows coverage over the 
+last 30 days. 
+• 
+A "weakest cells" list ranks the ten lowest cells with the likely cause (source down, 
+beyond horizon, sold out, rejected). 
+• 
+Clicking a cell opens the tasks and quotes behind it. 
+• 
+Export available. 
+Done when. The matrix numbers equal counts 
+from scrape_task and fare_quote_clean. 
+ 
+F. Alerts and Anomaly Intelligence 
+F120 — Alert rule builder with dry run 
+What it is. Analysts create their own alerts without code, and preview them safely. 
+How it works. 
+• 
+Structured form (no free-form code): scope (Overall, route, carrier, 
+source), metric (index level, day-over-day %, week-over-week %, robust z-score, 
+coverage, freshness, source success rate, quarantine backlog, last-minute 
+premium), operator, threshold, evaluation window ("for 2 consecutive 
+evaluations"), severity, cooldown, channels, recipients, auto-resolve. 
+• 
+Rules are stored as validated JSON in alert_rule, evaluated by a fixed engine 
+every 5 minutes or on relevant ticks, so users can never inject executable logic. 
+• 
+Dry run: replays the rule over the last 30 days and shows how many alerts 
+it would have raised and when, on a timeline, before saving. Rules that would 
+have fired more than 20 times are flagged as noisy. 
+• 
+Edit, disable, duplicate, test-fire (sends a labelled test), and view firing history 
+per rule. 
+Done when. The dry run's count equals what a real evaluation over the same period 
+produces, and invalid rules are rejected with clear messages. 
+F121 — Alert delivery channels 
+What it is. Getting alerts to people where they will see them. 
+How it works. 
+• 
+Channels: in-app (always), email, Slack or Microsoft Teams webhook, generic 
+webhook; SMS is production-only. 
+• 
+Email: bilingual templates with a short summary and a deep link, never 
+including data beyond what the recipient is permitted to see. 
+• 
+Controls: per-channel rate limits, quiet hours (default none, configurable), 
+digest option (hourly summary for low-severity alerts). 
+• 
+Escalation: if a critical alert is not acknowledged within 30 minutes, notify a 
+secondary recipient or group. 
+• 
+Delivery log with status per channel and retries on transient failure. 
+Done when. A critical test alert reaches each configured channel, escalates when 
+unacknowledged, and respects quiet hours for non-critical alerts. 
+F122 — Statistical anomaly detection (STL residual) 
+What it is. Automatically spots unusual price movements, accounting for normal 
+weekly patterns. 
+How it works. 
+• 
+Model: STL decomposition (weekly period 7, robust fitting) on the daily series of 
+each scope (overall, each route, each carrier). The residual is scaled by its robust 
+spread: score = |residual| / (1.4826 × MAD(residuals)). 
+• 
+Thresholds: 3.5 to 4.5 is INFO, 4.5 to 6 is WARN, above 6 is CRITICAL. 
+• 
+Cadence: evaluated after each cycle and at the daily freeze; intraday cell-level 
+checks compare each cell with its value at the same point of previous cycles. 
+• 
+Cold start: needs at least 14 days (two weekly periods); before that the feature is 
+disabled and the page says "Anomaly detection starts after 14 days of data". 
+• 
+Output: anomaly_event rows with scope, detector, severity, score, expected and 
+observed values, and an explanation (F124). Duplicate events for the same scope 
+and day are merged. 
+• 
+Evaluation: on simulated data with injected events, the harness reports recall 
+and false alarms, and the Alerts page shows the detector's own track record 
+("Confirmed 9 of 12 events reviewed"). 
+Done when. Injected spikes of at least 8% are detected with recall of at least 0.9, and 
+normal weekend cycles do not trigger. 
+F123 — Cross-carrier agreement classifier 
+What it is. Tells whether an unusual move is a genuine market-wide change or a data 
+problem. 
+How it works. For each anomalous cell, in the same time window (2 hours or the same 
+cycle): 
+• 
+Carrier agreement = share of carriers with at least 3 matched products whose 
+price moved beyond a threshold in the same direction. 
+• 
+Classification: MARKET_MOVE if at least 60% agree; CARRIER_SPECIFIC if one 
+carrier moved alone (a fare action); SOURCE_SPECIFIC if the move appears in 
+only one source or channel (a likely data problem); DATA_SUSPECT if a single 
+quote is responsible. 
+• 
+The class is stored with the anomaly and used by the cleaner (F058) to 
+downgrade rejects to flags for market moves, and by the explanation generator 
+(F124). 
+Done when. Scenarios covering each class produce the right label in tests. 
+F124 — Explanation and attribution generator 
+What it is. Turns an anomaly into a sentence and a breakdown a person can 
+understand and act on. 
+How it works. 
+• 
+Inputs: the anomaly, expected versus observed (from the STL fit), top 
+contributors by route and lead bucket (the same contribution maths as F085), 
+carrier agreement class, coinciding events (festival calendar F047, surcharge 
+change F140, fare-cap events F141), coverage. 
+• 
+Output 
+JSON: summary, expected, observed, magnitude_pct, top_contributors, car
+riers_moved, class, possible_drivers, confidence. 
+• 
+Summary sentence (English and Hindi templates): "DEL–BLR L07 fares are 
+18.2% above expected. Three of four carriers moved within two hours. The date 
+falls inside the festival window." 
+• 
+Wording rule: drivers are hedged ("coincides with", "consistent with") and 
+never stated as causes, since correlation with an event is not proof. 
+• 
+Confidence (High, Medium, Low) is derived from agreement level, sample size 
+and coverage, and explained in a tooltip. 
+• 
+Fully deterministic and unit-tested on at least 20 scenarios. No language model is 
+used. 
+Done when. Each scenario yields the expected sentence, contributors and confidence 
+label. 
+F125 — Booking savings simulator 
+What it is. An interactive tool showing what booking earlier could save, backed by 
+observed data. 
+How it works. 
+• 
+Inputs: scope (all-India or a route) and two lead times ("book at" and "compare 
+with"), chosen by sliders from 1 to 60 days, plus preset chips (last-minute versus 
+2 weeks, 2 weeks versus 1 month). 
+• 
+Calculation: uses the latest fitted curve P(l) (F126). saving % = 1 − 
+P(l_early) / P(l_late). The rupee estimate multiplies by the route's median 
+fare at the later lead. 
+• 
+Shows the result as a sentence ("Booking 15 days ahead instead of 3 saves about 
+26%, roughly ₹1,400 on a typical DEL–BOM fare"), with a range from the fit's 
+confidence band. 
+• 
+Optional weekday selector adjusts using the observed weekday profile. 
+• 
+Caveat always shown: "Based on fares observed over the last 30 days. Not a 
+guarantee for any specific flight." On simulated data, the origin badge and a note 
+appear. 
+• 
+Endpoint: GET /api/v1/analytics/booking-savings. Results are shareable 
+through the link mechanism (F034). 
+Done when. Sliders update results instantly using cached curve parameters, and 
+figures match a manual calculation. 
+F126 — Elasticity fitting and time evolution 
+What it is. The statistics behind the elasticity chart and the savings simulator. 
+How it works. 
+• 
+Model: P(l) = a + b·exp(−l/τ) fitted by robust non-linear least squares 
+(SciPy least_squares with soft-L1 loss) to quote-level relative prices across 
+lead days (not only the seven bucket means, since seven points cannot support a 
+stable three-parameter fit). 
+• 
+Constraints: a > 0, b > 0, τ between 2 and 40 days; sensible starting values 
+(a from the longest-lead price, b from the shortest, τ = 9). 
+• 
+Fallback: if the fit fails or R² is below 0.6, use monotone interpolation of log-
+price by lead bucket and label the result "Approximate". 
+• 
+Uncertainty: 200 bootstrap resamples give 90% intervals for τ and the last-
+minute premium. 
+• 
+Schedule: nightly per scope (all-India and each route with sufficient data, at 
+least 300 quotes in the window), plus on demand. 
+• 
+Time evolution: weekly fits over rolling 30-day windows, stored 
+in elasticity_curve, show how the curve steepens before festivals. A change of 
+more than 20% week-on-week in the premium raises an informational alert. 
+Done when. On simulated data with a known τ, the fit recovers it within 15%, and 
+failed fits fall back cleanly. 
+F127 — Saved views 
+What it is. Bookmark a configured screen. 
+How it works. 
+• 
+"Save view" captures page, filters, series, tab, zoom and chart options 
+into saved_view(view_id, owner_id, org_id, name, page, state_json, 
+shared, created_at). 
+• 
+Personal by default; shared with organisation on request. Opening a shared 
+view applies the opener's own permissions and hides anything they cannot see. 
+• 
+Views appear in the sidebar (pinned) and the command palette. 
+• 
+State carries a schema version (v=1) so old views migrate as the interface evolves. 
+• 
+Rename, duplicate, delete (owner only). 
+Done when. A saved view restores exactly, and a shared view respects the opener's 
+permissions. 
+F128 — Multi-series comparison workspace 
+What it is. A workspace for comparing several series side by side. 
+How it works. 
+• 
+Modal M3 opens a workspace with up to four charts arranged in a grid. 
+• 
+Synchronised crosshair and zoom across charts (toggle). 
+• 
+Spread chart: the difference between any two series, in points or percent. 
+• 
+Correlation matrix: Pearson correlation of daily % changes among selected 
+series, coloured, with sample size. 
+• 
+Drag and drop series between charts; rebase to a common date. 
+• 
+Export image or data; save as a view (F127). 
+Done when. Synchronised interactions work across all charts, and correlations match 
+a reference calculation. 
+F129 — Seasonal adjustment view 
+What it is. Separates the underlying trend from regular weekly patterns. 
+How it works. 
+• 
+STL decomposition on the official daily series into trend, weekly seasonal and 
+residual components, displayed as three stacked panels, with a toggle to show 
+the seasonally adjusted series (original minus seasonal). 
+• 
+Requires at least 8 weeks of data; before that the control explains why it's 
+unavailable. 
+• 
+Labelled with the method. The official published series remains unadjusted; 
+adjusted values are analytical only. 
+• 
+Production adds monthly adjustment with X-13ARIMA-SEATS once 3 or more 
+years exist. 
+Done when. The decomposition reconstructs the original series exactly (trend + 
+seasonal + residual), and the availability rule works. 
+F130 — Chart annotations and analyst notes 
+What it is. Analysts leave context on the data for colleagues. 
+How it works. 
+• 
+Click a point, then "Add note": text up to 500 characters, visibility (private or 
+organisation). Stored in chart_note(note_id, series_key, obs_date, 
+author_id, org_id, visibility, text, created_at). 
+• 
+Displays as a note marker (F022); hover shows the text and author; authors edit 
+or delete their own; admins can remove any. 
+• 
+Text is plain and escaped everywhere (no markup). Notes can be included in 
+reports through a checkbox. 
+• 
+Every create, edit and delete is audited. 
+Done when. Notes appear for the right audience only, and script-like text renders 
+harmlessly as text. 
+ 
+G. Administration and Security Management 
+F131 — Audit log viewer 
+What it is. Searchable, tamper-evident history of important actions. 
+How it works. 
+• 
+Table with columns time, actor, action, resource, outcome, IP. Filters: actor, 
+action category, resource, outcome, time range; free-text search; saved filters. 
+• 
+Row click opens a detail drawer with the full JSON (with sensitive values 
+redacted). 
+• 
+Live tail toggle streams new entries. 
+• 
+Verify chain button (F144) checks hash-chain integrity across the selected 
+range and reports the result. 
+• 
+Export (CSV) for auditors, itself audited. 
+• 
+Access: AUDITOR and TENANT_ADMIN (scoped to their organisation). 
+• 
+Logged categories include: authentication, permission denials, role and key 
+changes, exports, report runs, methodology changes, publications, revisions, 
+overrides, source pauses, raw payload views, admin actions. 
+Done when. A scripted sequence of actions all appear with correct actors and 
+outcomes, and filters and export work. 
+F132 — User and role administration 
+What it is. Managing who has access to what. 
+How it works. 
+• 
+Users: invite by email (single or bulk CSV); invitation link valid 72 hours and 
+single-use; resend; deactivate and reactivate; last login column. Users are 
+deactivated rather than deleted, preserving audit integrity (personal data erasure 
+requests follow a documented process that anonymises profile fields while 
+retaining audit references). 
+• 
+Roles: assign one or more roles; optional time-bound elevation (role expires 
+automatically); a read-only permission matrix view. 
+• 
+Organisation settings: session timeouts (within safe bounds), MFA 
+enforcement by role, export quotas, allowed report-recipient domains, data-
+retention settings. 
+• 
+Safeguards: cannot remove the last admin; cannot demote yourself from 
+admin; all changes require recent authentication and are audited; role changes 
+notify the user and end their existing sessions so new permissions apply cleanly. 
+Done when. Invitations, deactivation, elevation expiry and all safeguards behave as 
+specified in tests. 
+F133 — SSO configuration wizard (production) 
+What it is. Guided setup of single sign-on for an organisation. 
+How it works (P). 
+1. Choose protocol: SAML 2.0 or OpenID Connect. 
+2. Provide IdP details: upload SAML metadata or enter issuer, client ID and secret 
+(stored encrypted). 
+3. Attribute mapping: email, name, and group claims to roles. 
+4. Test login in a separate window without affecting current sessions. 
+5. Domain claim: prove ownership of the email domain via a DNS TXT record. 
+6. Enforce SSO: optionally disable password login for that domain, with a break-
+glass admin account protected by MFA and monitored. 
+7. Options: just-in-time user provisioning; SCIM for automatic provisioning and 
+deprovisioning. 
+• 
+Signed assertions required, replay protection, clock-skew tolerance of 60 
+seconds. 
+Done when (P). A test IdP completes the wizard, logs in a user with the mapped role, 
+and enforcing SSO blocks password login for that domain. 
+F134 — Session and device management 
+What it is. Users and admins can see and end active sessions. 
+How it works. 
+• 
+List: device and browser, approximate location (city-level from IP), created time, 
+last active, current-session marker. 
+• 
+Actions: revoke one session, "Sign out everywhere" (also available to admins for 
+any user). 
+• 
+Limits: maximum 5 concurrent sessions per user; the oldest is ended when 
+exceeded, with a notification. 
+• 
+New-device notice: an email when a sign-in comes from an unrecognised 
+device. 
+• 
+Suspicious sessions: flagged when the country changes within an hour (simple 
+impossible-travel rule); flagged sessions for privileged users require re-
+authentication. 
+• 
+Storage: live state in Redis, history in user_session. 
+Done when. Revoking a session ends its API access and WebSocket within 5 seconds. 
+F135 — Multi-factor authentication 
+What it is. A second proof of identity beyond the password. 
+How it works. 
+• 
+TOTP (RFC 6238): 6 digits, 30-second step, ±1 step tolerance, 160-bit secret 
+encrypted at rest. Enrolment shows a QR code and the manual key, and requires 
+entering a valid code to finish. 
+• 
+Backup codes: 10 single-use codes shown once at enrolment, stored hashed; 
+regeneration invalidates old ones. 
+• 
+Passkeys (WebAuthn/FIDO2): supported as a second factor (production: 
+also passwordless), with multiple registered authenticators and friendly names. 
+• 
+Protections: used TOTP codes are cached for 90 seconds to block replay; five 
+failed attempts within 10 minutes lock MFA attempts temporarily; failures trigger 
+the notifications described in F002. 
+• 
+Enforcement: by role (mandatory for privileged roles) and by organisation 
+policy, with a grace period of 7 days for new requirements. 
+• 
+Recovery: if a user loses all factors, a tenant admin can reset MFA after 
+verifying identity out of band; the action is audited and the user is forced to re-
+enrol. 
+• 
+Deliberately not offered: SMS one-time codes, because of SIM-swap and 
+interception risk. 
+• 
+Step-up: sensitive actions (approve, publish, create key, change roles) request a 
+fresh factor within the last 10 minutes. 
+Done when. Enrolment, login, backup-code use, replay rejection and step-up all work 
+in tests, and no SMS path exists. 
+ 
+Schema additions for Tier 3 
+sql 
+CREATE TABLE index_run ( 
+  run_id UUID PRIMARY KEY DEFAULT gen_random_uuid(), 
+  obs_date DATE NOT NULL, methodology_id SMALLINT NOT NULL, basket_id 
+SMALLINT NOT NULL, 
+  version INT NOT NULL DEFAULT 1, code_version TEXT NOT NULL, 
+  input_digest CHAR(64) NOT NULL, status TEXT NOT NULL, 
+  computed_at TIMESTAMPTZ NOT NULL DEFAULT now() 
+); 
+CREATE TABLE reproduction_check ( 
+  check_id BIGSERIAL PRIMARY KEY, run_id UUID NOT NULL REFERENCES 
+index_run(run_id), 
+  ok BOOLEAN NOT NULL, max_abs_diff NUMERIC(14,10), code_version TEXT NOT 
+NULL, 
+  checked_by UUID, checked_at TIMESTAMPTZ NOT NULL DEFAULT now() 
+); 
+CREATE TABLE methodology_preview ( 
+  preview_id UUID PRIMARY KEY DEFAULT gen_random_uuid(), 
+  methodology_id SMALLINT NOT NULL, window_start DATE NOT NULL, window_end 
+DATE NOT NULL, 
+  summary JSONB NOT NULL, status TEXT NOT NULL, created_by UUID, 
+created_at TIMESTAMPTZ DEFAULT now() 
+); 
+CREATE TABLE alert_rule ( 
+  rule_id UUID PRIMARY KEY DEFAULT gen_random_uuid(), org_id TEXT NOT 
+NULL, 
+  name TEXT NOT NULL, definition JSONB NOT NULL,       -- validated 
+structured condition 
+  severity TEXT NOT NULL, cooldown_minutes INT NOT NULL DEFAULT 360, 
+  channels JSONB NOT NULL, enabled BOOLEAN NOT NULL DEFAULT TRUE, 
+  created_by UUID NOT NULL, created_at TIMESTAMPTZ DEFAULT now() 
+); 
+CREATE TABLE saved_view ( 
+  view_id UUID PRIMARY KEY DEFAULT gen_random_uuid(), owner_id UUID NOT 
+NULL, org_id TEXT NOT NULL, 
+  name TEXT NOT NULL, page TEXT NOT NULL, state_json JSONB NOT NULL, 
+schema_version INT NOT NULL DEFAULT 1, 
+  shared BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ DEFAULT 
+now() 
+); 
+CREATE TABLE chart_note ( 
+  note_id UUID PRIMARY KEY DEFAULT gen_random_uuid(), series_key TEXT NOT 
+NULL, obs_date DATE NOT NULL, 
+  author_id UUID NOT NULL, org_id TEXT NOT NULL, 
+  visibility TEXT NOT NULL CHECK (visibility IN ('PRIVATE','ORG')), 
+  text TEXT NOT NULL CHECK (char_length(text) <= 500), created_at 
+TIMESTAMPTZ DEFAULT now() 
+); 
+CREATE TABLE webhook_endpoint ( 
+  endpoint_id UUID PRIMARY KEY DEFAULT gen_random_uuid(), org_id TEXT NOT 
+NULL, 
+  url TEXT NOT NULL, events TEXT[] NOT NULL, secret_enc BYTEA NOT NULL, 
+  enabled BOOLEAN NOT NULL DEFAULT TRUE, consecutive_failures INT NOT NULL 
+DEFAULT 0, 
+  created_by UUID NOT NULL, created_at TIMESTAMPTZ DEFAULT now() 
+); 
+CREATE TABLE webhook_delivery ( 
+  delivery_id UUID PRIMARY KEY DEFAULT gen_random_uuid(), 
+  endpoint_id UUID NOT NULL REFERENCES webhook_endpoint(endpoint_id), 
+  event_type TEXT NOT NULL, payload JSONB NOT NULL, attempt INT NOT NULL 
+DEFAULT 1, 
+  status_code INT, latency_ms INT, response_snippet TEXT, delivered_at 
+TIMESTAMPTZ, next_attempt_at TIMESTAMPTZ 
+); 
+CREATE TABLE api_usage_daily ( 
+  client_id UUID NOT NULL, day DATE NOT NULL, endpoint TEXT NOT NULL, 
+  calls BIGINT NOT NULL, errors BIGINT NOT NULL, bytes BIGINT NOT NULL, 
+p95_ms INT, 
+  PRIMARY KEY (client_id, day, endpoint) 
+); 
+CREATE TABLE circuit_state ( 
+  source_id SMALLINT PRIMARY KEY REFERENCES ref_source(source_id), 
+  state TEXT NOT NULL CHECK (state IN ('CLOSED','OPEN','HALF_OPEN')), 
+  opened_at TIMESTAMPTZ, reason TEXT, evidence JSONB, cooldown_until 
+TIMESTAMPTZ 
+); 
+CREATE TABLE user_session ( 
+  session_id TEXT PRIMARY KEY, user_id UUID NOT NULL, created_at 
+TIMESTAMPTZ NOT NULL, 
+  last_active_at TIMESTAMPTZ NOT NULL, ip INET, user_agent TEXT, city 
+TEXT, country CHAR(2), 
+  revoked_at TIMESTAMPTZ, flagged BOOLEAN NOT NULL DEFAULT FALSE 
+); 
+ 
+Where we are 
+Tiers 1 to 3 (F001–F135) are locked. With these, the product covers the full path 
+from a raw fare to a signed, reproducible, governed, deliverable number, plus the tools 
+to operate and secure it. 
+Next and last: Tier 4, F136–F160 (nowcasting and forward booking indicators, 
+advanced anomaly methods, fuel-surcharge and fare-cap detection, AI-assisted adapter 
+repair with human approval, health-scored source fallback, the hash-chained audit log, 
+the large-move publication gate, multi-tenancy and custom baskets, the custom index 
+builder, the grounded "Ask AeroIndex" assistant, what-if scenarios, the CPI bridge, 
+lineage graph, dataset releases, partner ingest, licensed feeds, autoscaling, disaster 
+recovery, access-pattern monitoring, multi-category expansion and compliance evidence 
+automation). I'll close Tier 4 with a final traceability table mapping every feature to the 
+problem statement, so the lock is complete. 
+Say "CONTINUE TO TIER 4" when you're ready. 
+CONTINUE TO TIER 4 
+AeroIndex Feature Register: Tier 4 (F136–F160) 
+Tier 4 is the expert layer. These features turn a strong hackathon project into a 
+platform an institution can rely on and a company can scale. Most are built as designed 
+interfaces first. Several are marked P (production-only) on purpose, so the 48-hour 
+build stays realistic while the architecture visibly leaves room for them. 
+New tables introduced here are listed at the end. After Tier 4 you'll find the 
+final lock statement: a traceability table from every problem-statement requirement 
+to the features that satisfy it, plus an honest cut of the 48-hour build. 
+ 
+A. Forecasting and Forward-Looking Signals 
+F136 — Nowcast and forecast with intervals 
+What it is. A projection of where APIx is heading, including an estimate of the current 
+month before it finishes. It answers the problem statement's point that CPI "lags behind 
+true airfare inflation". 
+How it works. 
+• 
+Target: the log of the daily OFFICIAL OVERALL series (log so changes are 
+proportional). 
+• 
+Model: SARIMAX from statsmodels, with exogenous inputs: festival and holiday 
+bump profiles from the event calendar (F047), and the forward booking-curve 
+indicator (F137). Because the index is already weekday-matched, weekly 
+seasonality is small, but it is tested and kept only if it improves out-of-sample 
+error. 
+• 
+Horizon: 1 to 30 days ahead. Monthly nowcast = observed days so far plus 
+forecast days remaining, averaged as the monthly rollup would be. 
+• 
+Intervals: 80% and 95% prediction intervals from simulated model paths 
+(1,000 draws). 
+• 
+Honesty gate: every night a rolling-origin evaluation (expanding window, 
+1-day and 7-day horizons) computes MAPE and actual interval coverage, and 
+compares against a naive baseline (tomorrow equals today). If the model does 
+not beat the baseline, the UI labels the forecast "Not better than a simple 
+baseline" and shows the baseline instead. 
+• 
+Data requirement: at least 60 days of history for SARIMAX; between 30 and 
+60 days, a damped-trend ETS model is used; below 30 days the feature is off with 
+an explanatory message. 
+• 
+Schedule and storage: retrained nightly after the freeze; rows 
+in forecast(run_id, made_at, target_date, horizon, point, lo80, 
+hi80, lo95, hi95, model, params). 
+• 
+Display: a shaded band on the trend chart (F019) labelled "Forecast, not 
+official", a card "Expected October average: 121 to 125 (80% range)", and the 
+evaluation record shown in a tooltip. Forecasts never appear in official reports as 
+facts; if included, they sit in a clearly labelled section. 
+• 
+Endpoint: GET /api/v1/index/nowcast?horizon_days=30. 
+Edge cases. After a methodology change (chain link), the model refits on the linked 
+series. During an active hold or insufficient coverage, no new forecast is published. 
+Done when. On simulated data with known dynamics, interval coverage is within 10 
+percentage points of nominal (an 80% interval contains about 70–90% of outcomes), 
+and the baseline gate works. 
+F137 — Forward booking-curve indicator 
+What it is. A look at what fares for future travel dates are today, a genuinely forward-
+looking signal unavailable to a manual survey. 
+How it works. 
+• 
+The platform observes prices today for departures up to 60 days ahead. 
+Comparing prices across departure dates, after removing the normal effect of 
+booking lead time, shows which upcoming weeks are priced high. 
+• 
+Lead adjustment: each observed price is divided by the fitted lead curve value 
+at its lead (P(l) from F126) to express it as a "15-day-equivalent" price, so a fare 
+observed 45 days out is comparable with one observed 7 days out. 
+• 
+Forward index by departure week: the weighted matched-product mean of 
+lead-adjusted relatives for departures in that week, computed with the same 
+route weights. Stored in forward_index(obs_date, dep_week_start, 
+value, n_products, coverage). 
+• 
+Display: "What travellers will pay in the coming weeks, as priced today", a chart 
+over the next 8 weeks, with weeks that sit more than 5% above the current week 
+highlighted, and their overlap with festival events noted. 
+• 
+Use: feeds the nowcast as an exogenous input. 
+• 
+Caveat shown: airlines release inventory and adjust fares as departure 
+approaches, so this is an early signal, not a promise. 
+Done when. On simulated data with a festival in week 5, the forward index shows the 
+bump in that week, and lead adjustment removes the artificial slope that raw prices 
+would show. 
+F138 — Multivariate anomaly detection (Isolation Forest) 
+What it is. A second detector that finds unusual combinations the single-series 
+detector misses. Optional and always corroborating. 
+How it works. 
+• 
+Features per cell and cycle: relative price change, change in seats left, carrier 
+agreement share, lead bucket, hour of collection, route weight, and recent 
+volatility. 
+• 
+Model: scikit-learn IsolationForest, contamination 0.5%, trained weekly on 
+the trailing 28 days, fixed random seed. 
+• 
+Output: an anomaly score; events created only at INFO severity unless 
+corroborated by the STL detector (F122) or the carrier agreement classifier 
+(F123), in which case severity escalates. 
+• 
+Explanation: the two features with the largest robust z-scores are named in 
+plain words ("unusually large seat drop with a small price change"). 
+• 
+Guardrail: it never rejects or alters data. It only creates review items. 
+• 
+Detector performance is tracked from resolved reviews. 
+Done when. On simulated data with injected multi-signal events, the detector flags 
+them, and it never modifies a quote. 
+F139 — Regime-shift detection (CUSUM) 
+What it is. Detects sustained level shifts, such as a fare war or a persistent surcharge 
+increase, that single-day detectors miss. 
+How it works. 
+• 
+Method: two-sided CUSUM on the standardised STL residuals: S⁺_t = max(0, 
+S⁺_{t−1} + z_t − k) and S⁻_t = min(0, S⁻_{t−1} + z_t + k) with k = 
+0.5 and alarm threshold h = 5 (in standard-deviation units), configurable. 
+• 
+On alarm: record an event with the estimated change date (the last time the 
+statistic was zero), direction and size (the mean residual since then), then reset. 
+• 
+Interpretation: combines with carrier agreement (F123) and the surcharge 
+detector (F140) to label likely 
+nature: MARKET_WIDE_SHIFT, CARRIER_PRICING_SHIFT, SURCHARGE_STEP. 
+• 
+Runs per scope (overall, route, carrier) after each freeze. 
+• 
+Parameters and average run length trade-offs are documented on the 
+Methodology page, since sensitivity choices shape false alarms. 
+Done when. A simulated persistent +6% shift is detected within about 4 days with the 
+change date estimated within 2 days, and stationary noise yields at most one false alarm 
+per 200 days. 
+F140 — Fuel-surcharge change detector 
+What it is. Distinguishes airline price moves from fuel cost pass-through, using the 
+fare decomposition. 
+How it works. 
+• 
+Tracks the ratio fuel_surcharge / base_fare per carrier and route. 
+• 
+Step detection: the 3-day median compared with the previous 7-day median; 
+an event fires when the ratio changes by more than 15% (relative) while the base 
+fare changes by less than 3%. 
+• 
+Cross-carrier check: when several carriers step together, the event is 
+labelled SURCHARGE_INDUSTRY_WIDE. 
+• 
+Effects: adds an entry to the event calendar (FUEL_PRICE, source "detected") 
+shown as a chart marker, feeds the anomaly explanation (F124), and is 
+highlighted in the component chart (F084). 
+• 
+Manual entries are also supported for known fuel-price revision dates (often 
+monthly, verify current practice), so analysts can add context the data can't 
+reveal. 
+Done when. A simulated surcharge step is detected with the right date and labelled 
+correctly, and a base-fare change alone does not trigger it. 
+F141 — Fare-cap and regulatory event detector 
+What it is. Notices when a price ceiling seems to be in effect, since caps distort the 
+index and analysts need to know. 
+How it works. 
+• 
+Signature heuristics on a route: the maximum observed fare is nearly 
+identical across carriers, the share of quotes within 1% of that maximum jumps 
+above 20%, and fare dispersion in high-demand buckets collapses (variance falls 
+more than 50% versus the previous 14 days). 
+• 
+Output: an anomaly_event of type POSSIBLE_FARE_CAP with route, the 
+apparent ceiling in ₹, number of carriers and confidence. Wording is hedged 
+("consistent with a fare ceiling"). 
+• 
+Confirmation: an analyst can confirm and link the official notice, which adds 
+a REGULATORY event to the calendar with the source reference. Detection alone is 
+never presented as fact. 
+• 
+Effect on the index: none automatically (a capped price is still the price paid). 
+The explanation generator and charts annotate the period. 
+Done when. A simulated cap on one route triggers detection, and unrelated high-
+demand periods do not. 
+ 
+B. Collection Intelligence 
+F142 — AI-assisted adapter repair (human-gated) 
+What it is. When a source's page or API changes and breaks parsing, the system drafts 
+a fix for an engineer to review. It never deploys changes on its own. 
+How it works. 
+1. Trigger: the drift detector (F118) opens a circuit with evidence. 
+2. Context assembly: the previous golden payload and its expected parse, a 
+sample of the new failing payload, the current parser module, and the failing test 
+output. All payload content is wrapped and labelled as untrusted data, size-
+limited, and stripped of anything resembling credentials. No production data, 
+secrets or network access are included. 
+3. Proposal: a language model (provider configurable) returns a patch limited to 
+the adapter's parser file. 
+4. Automated checks in a sandbox: the diff may touch only allowed paths; 
+static analysis rejects new network, file-system, subprocess or eval use; the patch 
+must pass all golden tests and produce the expected fields on the new sample. 
+5. Change request: a pull request opens with the diff, test results, a plain-
+language explanation and a confidence note. 
+6. Human approval: an engineer reviews and merges through the normal CI and 
+deployment path. Only then does the half-open probe (F118) test the fixed 
+adapter. 
+• 
+Prompt-injection defence: because scraped pages are hostile inputs, the 
+model has no tools and no ability to act; its only output is a text diff that goes 
+through the checks above and human review. 
+• 
+Controls: feature flag, per-day cost cap, kill switch, audit log of every proposal, 
+and metrics (proposal pass rate, time from drift to fix). 
+• 
+In the 48-hour build: presented as a scripted demo using one recorded, real 
+example. Live automation is a production feature. 
+Done when. On a fixture with a deliberately changed payload, the pipeline produces a 
+patch that passes the sandbox checks and opens a pull request, and a patch touching a 
+forbidden path is rejected automatically. 
+F143 — Source health scoring and automatic fallback routing 
+What it is. A numeric health score per source and a rule-based way to keep coverage 
+up when one fails. 
+How it works. 
+• 
+Score (0–100): 40% success rate, 20% parse rate, 20% (inverse) block rate, 
+10% latency versus baseline, 10% data freshness, computed over the last 20 tasks 
+and per source-route cell. 
+• 
+Fallback ladder for a cell whose primary source is unhealthy: (1) another 
+airline-direct or OTA source that sells the same route, (2) a licensed feed if 
+configured, (3) carry-forward within limits (F059), (4) exclude and renormalise. 
+• 
+Comparability rules: substituted quotes are flagged FALLBACK_SOURCE; the 
+channel policy (F062) still applies; if fallback-sourced products exceed 25% of a 
+cell's matched set, the cell is flagged so users know the number leans on a 
+substitute. 
+• 
+Reversion: when the primary recovers (circuit closed and score above 80 for 
+three cycles), routing reverts automatically. 
+• 
+Every decision is recorded in fallback_decision(cycle_id, route_id, 
+bucket_id, primary_source, fallback_source, reason, 
+decided_at) and shown on the Coverage matrix and Data Health page. 
+Done when. Taking a source offline in tests triggers the correct ladder step, the 
+fallback share cap flags as specified, and the system reverts after recovery. 
+ 
+C. Integrity, Governance and Security 
+F144 — Tamper-evident hash-chained audit log 
+What it is. An audit trail where any alteration or deletion of history is detectable. 
+How it works. 
+• 
+Chain: each row stores prev_hash and row_hash = SHA-256(prev_hash ‖ 
+canonical_json(row)). Canonical JSON means sorted keys, UTF-8, no 
+whitespace, fixed timestamp format. 
+• 
+Concurrency: one chain per organisation plus a platform chain; inserts take a 
+transaction-level advisory lock on the chain ID so the order is well-defined. 
+Budget: 500 events per second per organisation, with batching for bulk actions. 
+• 
+Database enforcement: triggers block UPDATE and DELETE; application roles 
+have no such privileges (F146 and Part D role definitions). 
+• 
+Anchoring: each night the final hash of each chain is written to an object-lock 
+(write-once) bucket and, in production, timestamped with an external RFC 3161 
+time-stamp authority. This makes tampering detectable even by someone with 
+database superuser access. 
+• 
+Verification: a job recomputes the chain nightly and on demand (the Verify 
+chain button, F131), reporting the first mismatch or gap. A failure raises a 
+critical alert. 
+• 
+Backup awareness: restores are followed by a verification run and a recorded 
+note. 
+Done when. Altering a row directly in the database causes verification to fail at that 
+row, and deleting a row is detected as a gap. 
+F145 — Large-move hold-and-review publication gate 
+What it is. An extra safeguard: unusually big moves are reviewed by a person before 
+becoming official. 
+How it works. 
+• 
+At the freeze (F071), if the day-over-day APIx change exceeds 3% or 4 standard 
+deviations of the historical daily changes (whichever is larger), or any route 
+moves more than 10%, the day is placed on HOLD instead of publishing. 
+• 
+The approver sees: the change, the attribution (F085), the anomaly explanation 
+(F124), coverage, spliced-product share, source health, and quarantine status, on 
+one review screen. 
+• 
+Actions: Publish with note ("Reviewed large move: festival 
+demand"), Investigate (keeps the hold and assigns a task), Revise data (via 
+quarantine review, then re-freeze). 
+• 
+Holds expire into an escalation after 24 hours. Publishing after review annotates 
+the point permanently on charts. 
+• 
+Thresholds are configurable; the false-hold rate is tracked so the gate does not 
+become noise. 
+Done when. A simulated 5% jump is held, the review screen shows all inputs, and 
+publishing records the reviewer and note. 
+F146 — Multi-tenant isolation (row-level security) 
+What it is. Several organisations can share one platform without ever seeing each 
+other's private data. Production feature; the H build has a single tenant but the hooks 
+exist. 
+How it works. 
+• 
+Data classes: (1) Platform-level shared data: reference tables, cleaned market 
+data and the official APIx series. (2) Tenant-owned data: saved views, alert 
+rules, reports, webhooks, API keys, notes, custom baskets and indexes, users, 
+audit entries. Every tenant-owned table has org_id. 
+• 
+Enforcement in layers: 
+1. The API sets SET LOCAL app.org_id = '<org from verified 
+token>' at the start of every request. 
+2. PostgreSQL row-level security policies on tenant-owned tables restrict 
+rows to org_id = current_setting('app.org_id'). Application roles 
+do not have BYPASSRLS. 
+3. Redis keys and cache entries include the org ID; WebSocket channels are 
+namespaced by org. 
+4. Object storage prefixes are per organisation with IAM policies; per-tenant 
+encryption keys. 
+• 
+Automated isolation tests: with two tenants' fixtures, a generated test suite 
+(from the OpenAPI file) attempts every endpoint with tenant A credentials 
+against tenant B's object IDs and expects 404 or 403. It runs on every merge. 
+• 
+Fairness: per-tenant rate limits and query timeouts to prevent noisy 
+neighbours. 
+• 
+Offboarding: export of tenant data, then verified deletion of tenant-owned rows 
+and keys, with a certificate of deletion. 
+Done when. The isolation suite passes with zero cross-tenant reads or writes, and a 
+query issued without the org context returns no tenant rows. 
+F147 — Custom baskets per tenant 
+What it is. Organisations define their own route mix and weights, for example an 
+airline's network, a bank's travel-linked exposure or a corporate travel programme. 
+Production feature. 
+How it works. 
+• 
+A tenant creates up to 10 baskets of up to 100 routes each, with weights entered 
+or imported from CSV (validated like F067). 
+• 
+Efficient computation: cell-level indices are shared (platform-level), so a 
+tenant basket only recomputes the route and aggregate levels, which is cheap and 
+fast. 
+• 
+Output series are named TENANT:{org}:{basket} and appear only for that 
+tenant, in the Explorer, API and reports. 
+• 
+Only weights and route selection are customisable. Cleaning rules and index 
+formulas are not, so tenant series stay comparable and trustworthy. 
+• 
+Optional internal approval workflow for basket changes within the tenant; every 
+change versioned. 
+• 
+Usage feeds billing hooks (number of baskets and routes). 
+Done when. A tenant basket reproduces the platform index when given the platform 
+weights, and tenant B cannot see tenant A's basket. 
+F148 — Custom index builder 
+What it is. A no-code tool to build a weighted composite index from existing series. 
+Production feature. 
+How it works. 
+• 
+Builder UI: pick component series (routes, carriers, lead buckets, channels, 
+route groups, up to 20), assign weights (sliders that sum to 100%), choose the 
+method (weighted arithmetic of index levels, chain-linked; or weighted 
+geometric), choose a base date (rebased to 100), and preview against OVERALL. 
+• 
+Example: a "Business travel index" of 60% metro routes at lead L03–L07 plus 
+40% carrier-specific series. 
+• 
+Computation: daily and incremental from stored series values, saved 
+in custom_index(index_id, org_id, name, definition, method, 
+base_date, ...), and available through API and reports. 
+• 
+Integrity guardrails: custom indices are always labelled "Custom index, not 
+official APIx", cannot use the name or branding "APIx", carry a permanent badge, 
+and their exports include their definition. Sharing stays inside the tenant unless 
+approved. 
+Done when. A composite with a single 100% component equals that series exactly, and 
+labels appear on every view and export. 
+ 
+D. Intelligent Assistance 
+F149 — Grounded "Ask AeroIndex" assistant 
+What it is. Ask a question in plain language and get an answer with a chart and 
+citations. Optional, off by default, and built so it cannot make up numbers. 
+How it works. 
+• 
+Scope: questions about the platform's data ("Why did airfares rise this week?", 
+"Which route is most expensive to book last minute?", "How has Delhi–Mumbai 
+changed since August?"). 
+• 
+Tool-only design: the model does not query the database. It can call a fixed set 
+of read-only 
+tools: get_series, get_contributions, get_elasticity, get_anomalies, ge
+t_coverage, get_route_summary. Tools run with the asker's own 
+permissions (the same API and row-level security), so the assistant can never 
+show more than the user could. 
+• 
+Answer format: a short answer, a chart built from tool data, and citations: 
+each number links to the Provenance Drawer (F091). A "How I got this" panel 
+lists the tool calls made. 
+• 
+Number guard: after generation, every numeric value in the text must appear 
+in a tool result (within rounding). Otherwise the answer is regenerated or the 
+unsupported figure is removed. The assistant is instructed to say "the data 
+doesn't show that" rather than speculate. 
+• 
+Injection safety: tools return only numbers, dates and enumerated labels, 
+never free text taken from scraped pages, so hostile web content can't reach the 
+model. 
+• 
+Controls: per-user rate limits and cost budgets, full logging of questions and 
+tool calls (audited), organisation-level enable switch, model hosting in line with 
+the data-residency policy, and an evaluation set of 100 questions with expected 
+tool plans, run in CI. 
+• 
+Never used to write official reports. 
+Done when. On the evaluation set, at least 95% of answers contain only tool-supported 
+numbers, and cross-tenant or unauthorised requests return refusals. 
+F150 — Scenario and what-if simulator 
+What it is. A sandbox for asking "what if?" with transparent assumptions, for example 
+a fuel surcharge rise or a demand surge. 
+How it works. 
+• 
+Shocks the user can set: fuel-surcharge change (percent), tax or fee change, 
+festival-style demand increase for chosen dates and routes, capacity reduction on 
+a route (modelled as a demand-pressure shift). 
+• 
+Calculation (deliberately simple and explained): 
+o Component shocks pass through by share: ΔAPIx ≈ Σ_k s_k × shock_k 
+× pass-through_k, with base-period shares s_k (F075) and adjustable 
+pass-through (default 1.0 for surcharge and taxes). 
+o Demand shocks reuse the average historical bump profile estimated 
+from past events in the calendar (amplitude and width), scaled by the 
+user's factor. 
+• 
+Output: projected APIx path against the baseline forecast (F136) with a range, 
+and a table of assumptions. 
+• 
+Labels: "Illustrative scenario, not a forecast", with the assumptions listed and 
+each editable. 
+• 
+Scenarios are saved (scenario table), shareable inside the organisation, and 
+comparable side by side. 
+Done when. A zero shock reproduces the baseline, and a known surcharge change 
+yields the hand-calculated effect. 
+F151 — CPI bridge (indicative contribution) 
+What it is. Translates the airfare index movement into an indicative contribution to 
+the CPI transport component. Optional and clearly caveated. 
+How it works. 
+• 
+The user (or an administrator) supplies parameters that belong to the 
+statistics office: the weight of airfares within the relevant CPI group and the 
+weight of that group in the all-items CPI, each with a source note and effective 
+date. The platform never hard-codes them, because the official weights are 
+MoSPI's to define. 
+• 
+Calculation: contribution_to_CPI_change (percentage points) = 
+w_group × w_air_in_group × (monthly APIx change %), shown at monthly 
+frequency to match CPI. 
+• 
+Outputs an "indicative contribution" in basis points with the assumption list. 
+• 
+Always labelled "Indicative, not a CPI forecast". Parameter changes are 
+versioned and audited. 
+Done when. With the parameters set to known values, the output matches a hand 
+calculation, and the label is present on every view and export. 
+ 
+E. Lineage, Datasets and Data Supply 
+F152 — Data lineage graph explorer 
+What it is. An interactive map from any published number back to its source data, and 
+forward to everything it affects. 
+How it works. 
+• 
+Nodes: scrape task, raw capture, raw quote, clean quote, cell, route index, 
+overall index, report, webhook delivery. Edges are derived from existing keys 
+and the index_run.input_digest sets. 
+• 
+Two modes: 
+o Upstream: "How was this value produced?" shows the contributing 
+routes, cells and quotes, sampled to a readable size. 
+o Impact analysis (downstream): "If this source, rule, parser version or 
+day was wrong, what did it touch?" lists affected days, index values, 
+revisions, reports and webhooks. Example: "YATRA parser v1.3 had a bug 
+on 5–7 Sep, affecting 3 days, 41 cells, 3 published values and 1 report." 
+• 
+Search by quote ID, capture hash, report ID, source and date range. Graph 
+rendering caps at 500 nodes with expand-on-click. 
+• 
+Powers incident response and revision decisions. 
+Done when. For a seeded bad-source scenario, impact analysis returns the exact 
+affected values and reports. 
+F153 — Versioned dataset releases 
+What it is. Periodic, immutable snapshots of the data panel with documentation. 
+Production feature and the base of a commercial data product. 
+How it works. 
+• 
+Release job (monthly, after the monthly freeze): exports the cleaned quotes, cell 
+and series outputs, methodology and basket definitions as Parquet files 
+partitioned by month, with a manifest (files, row counts, SHA-256 hashes, 
+schema version). 
+• 
+Identifier: APX-YYYY-MM (with a delta release naming for late corrections), 
+stored in a write-once bucket. 
+• 
+Data card: an auto-generated document listing coverage, data-origin mix, 
+known issues, revisions since the previous release, licence terms and the intended 
+use. 
+• 
+Access: entitlements by organisation, delivered by expiring signed URLs, with 
+downloads audited and export watermarking (F158). 
+• 
+Licence enforcement: rows from sources whose licences forbid redistribution 
+(F155) are excluded or aggregated as required. 
+Done when. A release's files verify against the manifest, and a re-run of the same 
+period yields identical hashes. 
+F154 — Partner ingest gateway 
+What it is. A secure door for approved partners to send fare data. Production feature. 
+How it works. 
+• 
+Interfaces: REST POST /api/v1/ingest/quotes (batches up to 5,000 quotes) 
+and gRPC client-streaming for high volume. 
+• 
+Authentication: per-partner credentials with HMAC-signed batches 
+(timestamp, batch ID and body hash signed), optional mutual TLS, IP allow-
+listing. 
+• 
+Idempotency: batch_id ensures re-sent batches don't double count. 
+• 
+Processing: identical to any other source: normalisation and the full R01–R12 
+rules, with data_origin='LICENSED_FEED' and the partner as 
+the source_code. 
+• 
+Poisoning defences: schema validation; plausibility checks; a divergence 
+score compares the partner's prices with other sources for the same flights, and 
+a batch whose median differs by more than a set threshold is quarantined for 
+review; volume and rate limits; partners can write but never read. 
+• 
+Operations: per-partner quotas, delivery SLA dashboards (timeliness, rejection 
+rate), dead-letter queue, and audit of every batch. 
+Done when. A tampered batch (bad signature) is rejected, a replayed batch is ignored, 
+and a batch with inflated prices is quarantined by the divergence check. 
+F155 — Licensed-feed adapter framework 
+What it is. A reusable template for connecting commercial fare data providers, the 
+compliant production alternative to scraping. 
+How it works. 
+• 
+Adapter template for pull APIs (OAuth2 client credentials, token refresh, 
+pagination, rate-limit compliance) and push feeds (webhooks or file drops), with 
+a mapping layer to the platform's standard fields (fare_family_map, carrier and 
+airport code tables). 
+• 
+Secrets live in the secret manager; never in code or logs. 
+• 
+Cost control: per-call cost tracking and budget caps per day and month, with 
+alerts and automatic throttling before overrun. 
+• 
+Testing: recorded fixtures and contract tests like every adapter. 
+• 
+Licence metadata: each source 
+stores licence_terms, raw_display_allowed, redistribution_allowed and 
+attribution_text. The API and UI enforce these: where quote-level display is 
+not allowed, quote rows are hidden from users lacking special permission, and 
+exports aggregate to the permitted level. 
+• 
+Failover: feeds are the third rung of the fallback ladder (F143), so they can back 
+up scraped sources or become primary. 
+Done when. A mock provider integrates using only configuration and mapping files, 
+and a source with raw_display_allowed=false never exposes quote rows to ordinary 
+roles. 
+ 
+F. Scale, Resilience and Monitoring 
+F156 — Load-adaptive autoscaling (production) 
+What it is. The platform grows and shrinks with demand automatically. 
+How it works. 
+• 
+Kubernetes with: KEDA scaling scraper workers on queue depth; HPA scaling 
+API pods on CPU and p95 latency; validators scaling on Kafka consumer lag up to 
+the partition count; the WebSocket gateway scaling on connection count and 
+message rate. 
+• 
+Politeness ceiling: collector concurrency is capped per target 
+host regardless of load. Scaling out adds capacity for other work but never 
+increases pressure on a single site beyond the rules in F050. 
+• 
+Database: read traffic routed to a replica; connection pooling (PgBouncer); 
+alerting on saturation. 
+• 
+Guardrails: minimum and maximum replicas per service, cost alarms, and 
+scale-down delays to avoid flapping. 
+• 
+Evidence: a load-test report (k6 and Locust) at target loads: 5,000 WebSocket 
+clients, 20,000 messages per second ingest bursts, API latency targets. 
+Done when (P). Load tests show scaling events and meet the latency targets without 
+exceeding host caps. 
+F157 — Disaster recovery and point-in-time restore (production) 
+What it is. A tested ability to recover from data loss or a regional failure. 
+How it works. 
+• 
+Targets: recovery point objective 15 minutes, recovery time objective 1 hour for 
+the database. 
+• 
+Mechanisms: continuous WAL archiving for point-in-time recovery, daily base 
+backups, 35-day retention, encrypted and copied to a second region; object-store 
+versioning and replication; infrastructure defined as code for rebuild. 
+• 
+Redis: treated as disposable; recovery rebuilds live state from the database 
+(F070). 
+• 
+Drills: a monthly automated restore into an isolated environment, followed by 
+verification: row counts, a checksum sample, the audit-chain check (F144) 
+and reproduce checks on random published days (F092). Results are 
+stored as compliance evidence (F160). 
+• 
+Runbooks: replica promotion, cross-region failover, communication templates 
+(status page, customer notices), and a yearly game-day exercise. 
+Done when (P). A drill restores to a chosen timestamp and all verification checks 
+pass, with measured RPO and RTO recorded. 
+F158 — Access-pattern security monitoring (production) 
+What it is. Detecting suspicious use of the platform, whether from stolen credentials, 
+insiders or scraping of the platform itself. 
+How it works. 
+• 
+Baselines per user and key: calls per hour, rows per day, endpoints used, typical 
+hours and countries. 
+• 
+Detectors: bulk pagination sweeps, off-hours privileged actions, impossible 
+travel, key use from a new network provider, high denial rates (probing for object 
+IDs), export volume spikes, bursts of failed MFA, and WAF signals. 
+• 
+Scoring and response tiers: low, notify; medium, step-up authentication and 
+tighter throttles; high, temporary suspension (automatic for API keys, approval-
+based for people), with an incident ticket. 
+• 
+Leak tracing: exports carry an export_id and the organisation in metadata, 
+visible and verifiable. 
+• 
+Honeytokens: decoy API keys (apx_live_canary…) and decoy records placed 
+where an intruder would look; any use triggers an immediate high-severity alert. 
+• 
+Integration: structured events forwarded to a SIEM; dashboards for the 
+security team. 
+Done when (P). Simulated attacks (pagination sweep, credential stuffing, canary key 
+use) each produce the expected alert and response. 
+ 
+G. Expansion and Compliance 
+F159 — Multi-category index framework (production) 
+What it is. The same collection, cleaning, index and provenance machinery applied to 
+other price categories, turning one index into an Automated Price Statistics 
+Platform. 
+How it works. 
+• 
+Generalisation points: a category dimension; a generic market_unit in 
+place of "route"; a generic PriceObservation contract; per-category product-
+matching keys and lead-time concepts; per-category methodology versions and 
+weight sources. 
+Category 
+Market unit 
+Product key (example) 
+"Lead" concept 
+Weights from 
+Airfare 
+(built) 
+Route 
+carrier, flight, cabin, 
+fare family 
+Days before 
+departure 
+DGCA traffic 
+Rail 
+Origin–
+destination 
+train, class, quota 
+Days before 
+journey 
+Railway ridership 
+Bus 
+Route 
+operator, seat type 
+Days before 
+journey 
+Regional passenger 
+data 
+Hotels 
+City and star 
+band 
+property, room type 
+Days before stay 
+Occupancy or 
+tourism data 
+Telecom 
+tariffs 
+Plan family 
+operator, plan 
+Not applicable 
+Subscriber base 
+• 
+UI: a category switcher in the top bar; each category reuses the same dashboards. 
+• 
+Migration plan: add category_id to core tables, parameterise the planner and 
+index engine, keep airfare as category 1 without changing its published numbers. 
+• 
+Not built in H. It appears in the roadmap slide and the interface abstractions 
+(F043, F063) already assume it. 
+Done when (P). A second category runs end to end through the shared pipeline 
+without changing airfare outputs. 
+F160 — Compliance evidence automation (production) 
+What it is. Continuous, automatic collection of proof that security and governance 
+controls work, so audits become a review instead of a scramble. 
+How it works. 
+• 
+Control library: each control (mapped to ISO/IEC 27001 Annex A themes and 
+SOC 2 criteria) has an ID, description, owner, frequency and evidence type. 
+• 
+Automated collectors: access reviews (user and role exports each quarter), 
+MFA coverage percentage, change-management evidence (pull-request 
+approvals, CI results, deployment records), vulnerability scan and penetration 
+test results, backup and restore-drill results (F157), encryption configuration 
+checks, audit-chain verification results (F144), incident records, key rotation 
+status, and policy acknowledgements. 
+• 
+Evidence store: immutable, timestamped, hashed. 
+• 
+Dashboard: percentage of controls passing, upcoming reviews, failing controls 
+with owners, and drift alerts when a control breaks (for example, a user without 
+MFA on a privileged role). 
+• 
+Auditor access: a read-only portal for the AUDITOR role with exportable 
+evidence packages. 
+• 
+Scope note: this supports certification programmes. It does not itself confer 
+certification. 
+Done when (P). Evidence for a set of pilot controls generates automatically for a 
+month, and a deliberately broken control shows as failing with an alert. 
+ 
+Schema additions for Tier 4 
+sql 
+CREATE TABLE forecast ( 
+  run_id UUID NOT NULL, made_at TIMESTAMPTZ NOT NULL, target_date DATE NOT 
+NULL, horizon SMALLINT NOT NULL, 
+  series_key TEXT NOT NULL, point NUMERIC(12,4) NOT NULL, 
+  lo80 NUMERIC(12,4), hi80 NUMERIC(12,4), lo95 NUMERIC(12,4), hi95 
+NUMERIC(12,4), 
+  model TEXT NOT NULL, params JSONB NOT NULL, 
+  PRIMARY KEY (run_id, target_date, series_key) 
+); 
+CREATE TABLE forward_index ( 
+  obs_date DATE NOT NULL, dep_week_start DATE NOT NULL, value 
+NUMERIC(12,4) NOT NULL, 
+  n_products INT NOT NULL, coverage NUMERIC(5,4) NOT NULL, 
+  PRIMARY KEY (obs_date, dep_week_start) 
+); 
+CREATE TABLE fallback_decision ( 
+  decision_id BIGSERIAL PRIMARY KEY, cycle_id UUID NOT NULL, route_id 
+SMALLINT NOT NULL, 
+  lead_bucket_id SMALLINT NOT NULL, primary_source SMALLINT NOT NULL, 
+fallback_source SMALLINT, 
+  reason TEXT NOT NULL, decided_at TIMESTAMPTZ NOT NULL DEFAULT now() 
+); 
+CREATE TABLE custom_index ( 
+  index_id UUID PRIMARY KEY DEFAULT gen_random_uuid(), org_id TEXT NOT 
+NULL, name TEXT NOT NULL, 
+  definition JSONB NOT NULL, method TEXT NOT NULL CHECK (method IN 
+('ARITHMETIC_CHAINED','GEOMETRIC')), 
+  base_date DATE NOT NULL, created_by UUID NOT NULL, created_at 
+TIMESTAMPTZ DEFAULT now() 
+); 
+CREATE TABLE scenario ( 
+  scenario_id UUID PRIMARY KEY DEFAULT gen_random_uuid(), org_id TEXT NOT 
+NULL, owner_id UUID NOT NULL, 
+  name TEXT NOT NULL, shocks JSONB NOT NULL, assumptions JSONB NOT NULL, 
+result JSONB, 
+  created_at TIMESTAMPTZ DEFAULT now() 
+); 
+CREATE TABLE cpi_bridge_param ( 
+  param_id SERIAL PRIMARY KEY, name TEXT NOT NULL, value NUMERIC(10,6) NOT 
+NULL, 
+  source_note TEXT NOT NULL, effective_from DATE NOT NULL, created_by UUID 
+NOT NULL 
+); 
+CREATE TABLE dataset_release ( 
+  release_id TEXT PRIMARY KEY,               -- 'APX-2026-09' 
+  period_month DATE NOT NULL, manifest JSONB NOT NULL, manifest_sha256 
+CHAR(64) NOT NULL, 
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now() 
+); 
+CREATE TABLE control_evidence ( 
+  evidence_id BIGSERIAL PRIMARY KEY, control_id TEXT NOT NULL, 
+collected_at TIMESTAMPTZ NOT NULL, 
+  status TEXT NOT NULL CHECK (status IN ('PASS','FAIL','N/A')), 
+artifact_uri TEXT, sha256 CHAR(64) 
+); 
+-- source licence flags (Tier 4 F155) 
+ALTER TABLE ref_source 
+  ADD COLUMN raw_display_allowed BOOLEAN NOT NULL DEFAULT TRUE, 
+  ADD COLUMN redistribution_allowed BOOLEAN NOT NULL DEFAULT TRUE, 
+  ADD COLUMN licence_terms TEXT, ADD COLUMN attribution_text TEXT; 
+ 
+THE LOCK 
+1. Register summary 
+Tier 
+Features 
+Range 
+Character 
+1 Basic 
+40 
+F001–
+F040 
+Access, shell, formatting, first charts, exports, simulator 
+2 Core 
+50 
+F041–
+F090 
+Basket, collection, cleaning, index engine, core dashboards, live 
+updates 
+3 
+Advanced 
+45 
+F091–
+F135 
+Provenance, governance, validation, reports, API, ops consoles, 
+anomaly intelligence, admin 
+4 Expert 
+25 
+F136–
+F160 
+Forecasting, integrity, multi-tenant, AI-assisted, scale, compliance, 
+expansion 
+Total 
+160 
+ 
+ 
+2. Traceability to the problem statement (SIH26056) and the Study 
+Guide 
+Requirement 
+Features that satisfy it 
+R1 Scrape airlines and OTAs daily; JS-
+heavy sites and anti-bot handling 
+F043, F044, F045, F049, F050, F051, F052, F053, F118, 
+F143, F155 
+R1a Mock data first (Study Guide, 
+Section 0) 
+F039, F040, F046, F047, F048 
+R2 DGCA-based route basket; lead 
+windows 1/7/15/30/45 days 
+F041, F042, F044, F066, F067, F096 
+R3 Outliers, sold-out, missing values, 
+duplicates, base fare versus taxes 
+F054, F055, F056, F057, F058, F059, F060, F061, F062, 
+F117 
+R4 Weighted APIx, daily, weekly and 
+monthly, PSD-style 
+F063 to F075, F094 to F099, F145 
+R5a Interactive dashboard: trends, route 
+heatmaps, lead-time elasticity 
+F017 to F022, F076 to F086, F125, F126, F128, F129 
+R5b API for NSO/MoSPI and RBI 
+F109 to F114, F154 
+R5c Automated reports 
+F104 to F108, F095 
+R6a Back-test versus DGCA (30 days) 
+F100 to F103, F101 
+R6b Documentation and automated 
+testing 
+Methodology page (F096, F099), API docs (F109, F111), test 
+pyramid and CI (locked architecture and Part 2 Section 7), 
+acceptance tests in each feature's "Done when" 
+Requirement 
+Features that satisfy it 
+Study Guide: mock generator, pipeline 
+data flow, four core tables, API contract, 
+index theory 
+F039, F046, F048, F054 to F072, F109, schema in Parts 1 to 3 
+Live real-time behaviour 
+F015, F016, F070, F087, F088, F114 
+Security and compliance 
+F002 to F006, F131 to F135, F144, F146, F158, F160, and 
+Part F of the interface specification 
+Differentiators for judging 
+F091/F092 (reproduce), F122 to F124 (explainable 
+anomalies), F136/F137 (nowcast), F118/F142/F143 (self-
+healing collection), F125/F126 (savings simulator) 
+3. An honest cut of the 48-hour build 
+Sixty-four features are marked Must. That is too many to build at full depth in 48 hours 
+with three people, and pretending otherwise would put the demo at risk. The lock 
+therefore defines thin slices: the same feature, implemented minimally, with the full 
+design already in place so nothing needs redesign later. 
+Feature 
+48-hour thin slice 
+Full version (later) 
+F002, F004, 
+F006 
+Login, logout, fixed idle timeout, Argon2id, cookie flags 
+Throttling tiers, warning 
+modal, MFA (F135), SSO 
+(F133) 
+F008 
+Two roles (Analyst, Admin) 
+Ten roles and the permission 
+matrix 
+F011 to F016 
+All built: they are small and shape every screen 
+ 
+F017 
+Two or three sentence templates in English only 
+Full templates, Hindi, 
+evidence links 
+F039, F046, 
+F048 
+Simulator with lead curve, weekday effect, injected 
+defects, ground-truth labels 
+Full calibration, correlated 
+carrier shocks, scenario 
+scripting 
+F041 to F045 
+Basket from CSV, planner, simple scheduler 
+Leader lock, misfire policy, 
+manual controls 
+F054 to F059 
+Parser, dedup, sold-out, R01 to R06 and R09, MAD 
+outliers, carry-forward 
+Full R01 to R12, cold-start 
+handling 
+Feature 
+48-hour thin slice 
+Full version (later) 
+F063 to F072 
+Product key (level A), base prices, Jevons, lead weights, 
+route weights, overall, coverage guard, incremental 
+FLASH, OFFICIAL freeze, rollups 
+Matching ladder level B, 
+splicing, chain-linking, 
+alternate bases 
+F076 to 
+F081, F085, 
+F087 
+Overview, Explorer with rebase, heatmap, route page, 
+elasticity chart, waterfall, WebSocket ticks 
+Map, carrier and channel 
+views, ticker, resume 
+F091, F092 
+Drawer with contributions and a working Reproduce 
+Evidence export, code-version 
+handling 
+F100, F101, 
+F103 
+Back-test with benchmark upload and four metrics 
+Bootstrap intervals, per-route 
+runs 
+F109, F114 
+Core endpoints and one WebSocket channel 
+Full catalogue, ETags, 
+sandbox, SDKs 
+F122, F124, 
+F125, F126 
+STL anomaly plus explanation sentence, savings slider, 
+nightly fit 
+Full classification, time 
+evolution 
+Everything marked S, C or P is designed and interfaced but built only if time 
+remains, in the priority ladder from Part 2 Section 7. 
+The demo rule: a smaller set of features that work flawlessly, are labelled honestly and 
+can be explained beats a large set that partly works. The six flagship moments to 
+rehearse are: live ticking Overview, Reproduce this number, the route-by-lead heatmap, 
+the elasticity and savings simulator, an injected anomaly explained in one sentence, and 
+the back-test overlay with its honesty banner. 
+4. Change control after the lock 
+• 
+Feature IDs F001–F160 are permanent. Nothing is renumbered. 
+• 
+Adding, removing or re-prioritising a feature requires a short written entry 
+(ADR) stating what changes, why, and the effect on the 48-hour plan. 
+• 
+A feature marked Must can be moved down only if its thin slice is unachievable; 
+the decision is recorded the same hour. 
+• 
+After hour 46 nothing new is merged. 
+ 
+The specification is complete: architecture (Parts 1 and 2 plus the locked-
+architecture document), interface, security and real-time explanation, and 
+all 160 features. 
+The most useful next step is to start producing working code, since a running system 
+does more for the competition than more documentation. I can begin with: 
+1. The repository skeleton: compose.yml, Makefile, migrations for every table 
+listed across the tiers, and the seed CSVs. 
+2. The core pipeline with tests: simulator, cleaning rules, incremental and full 
+index engines, and the worked-example test. 
+3. The API and WebSocket layer matching the frozen payloads. 
+4. The frontend shell in the design system with the Overview and Provenance 
+Drawer. 
+Tell me which to build first and I'll write the files, run the tests, and hand back working 
+results. 
+ 
+ 
+ 

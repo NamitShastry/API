@@ -1,0 +1,2059 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AeroIndex / FareOS — Real-Time Airfare Price Intelligence & Aviation Operating System</title>
+  <meta name="description" content="Institutional airfare price intelligence platform for India. Real-time Jevons elementary index compilation, live Delhi departures command center, continuous observation streaming, and automated DGCA basket settlement.">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="light-mode">
+
+  <!-- =========================================================================
+       STAGE 1: PUBLIC WELCOME / LANDING PAGE (Editorial & Intelligent)
+       ========================================================================= -->
+  <div id="stage-landing" class="stage-view active">
+    <!-- Public Header Navigation -->
+    <header class="public-nav">
+      <div class="public-nav-container">
+        <div class="public-brand">
+          <div class="brand-icon">✈</div>
+          <span class="brand-title">AeroIndex</span>
+          <span class="brand-sub">/ FareOS</span>
+          <span class="brand-badge-mini" id="landing-mode-badge">SIMULATED_LIVE</span>
+        </div>
+        <div class="public-nav-links">
+          <a href="#features" class="public-nav-link" id="link-product">Architecture</a>
+          <a href="#coverage-universe" class="public-nav-link" id="link-coverage">Coverage Universe</a>
+          <a href="#methodology" class="public-nav-link" id="link-documentation">Methodology</a>
+          <a href="#pricing" class="public-nav-link" id="link-pricing">Pricing & Tiers</a>
+        </div>
+        <div class="public-nav-actions">
+          <button class="btn btn-ghost" id="btn-landing-login">Log In</button>
+          <button class="btn btn-primary" id="btn-landing-launch">Launch Workspace →</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Editorial Hero Section -->
+    <section class="landing-hero">
+      <div class="landing-hero-container">
+        <div class="editorial-eyebrow">
+          <span class="eyebrow-dot"></span>
+          <span>INDIAN DOMESTIC CIVIL AVIATION PRICE INTELLIGENCE · DGCA BASKET BV-2026.1</span>
+        </div>
+        
+        <h1 class="landing-title">
+          Analyze Aviation.<br>Command FareOS.
+        </h1>
+        
+        <p class="landing-subtitle">
+          An institutional-grade, AI-driven aviation intelligence and fare analytics platform. Real-time Jevons elementary price indexing, continuous sub-second quote observation, and automated DGCA basket settlement for Indian domestic civil aviation.
+        </p>
+
+        <!-- Central Query Experience -->
+        <div class="central-query-wrapper">
+          <form class="central-query-box" id="landing-query-form">
+            <span class="query-icon">✦</span>
+            <input 
+              type="text" 
+              class="query-input" 
+              id="landing-query-input" 
+              placeholder="Ask any aviation analytics question..."
+              autocomplete="off"
+            />
+            <button type="submit" class="query-submit-btn">
+              <span>Command</span>
+              <span class="query-arrow">→</span>
+            </button>
+          </form>
+
+          <!-- Quick Action Pills -->
+          <div class="quick-actions-strip">
+            <span class="quick-actions-label">Suggested Intelligence:</span>
+            <button class="quick-pill" data-query="Show DEL-BOM live fare trends" data-target="delhi-live">
+              Show DEL-BOM live fare trends
+            </button>
+            <button class="quick-pill" data-query="Open Delhi Live Command Center" data-target="delhi-live">
+              Open Delhi Live Command Center
+            </button>
+            <button class="quick-pill" data-query="Calculate 30-day index volatility" data-target="elasticity">
+              Calculate 30-day index volatility
+            </button>
+            <button class="quick-pill" data-query="Inspect data quality quarantine" data-target="quality">
+              Inspect data quality quarantine (R01-R12)
+            </button>
+          </div>
+        </div>
+
+        <!-- Live Intelligence Telegraph Strip -->
+        <div class="landing-telegraph-card">
+          <div class="telegraph-col hero-col">
+            <span class="telegraph-label">Flash National Composite</span>
+            <div class="telegraph-val-row">
+              <span class="telegraph-val" id="landing-telegraph-flash">114.82</span>
+              <span class="telegraph-unit">pts</span>
+              <span class="kpi-badge" id="landing-telegraph-change">+1.45% (1D)</span>
+            </div>
+            <span class="telegraph-sub">Sub-second FLASH update · Base 100.00 = 01 Jan 2026</span>
+          </div>
+
+          <div class="telegraph-divider"></div>
+
+          <div class="telegraph-col">
+            <span class="telegraph-label">Daily Official Settlement</span>
+            <div class="telegraph-val-row">
+              <span class="telegraph-val">113.80</span>
+              <span class="kpi-badge neutral">NEXT 23:30 IST</span>
+            </div>
+            <span class="telegraph-sub">Previous close index · 4 cycles verified</span>
+          </div>
+
+          <div class="telegraph-divider"></div>
+
+          <div class="telegraph-col">
+            <span class="telegraph-label">Elementary Cell Coverage</span>
+            <div class="telegraph-val-row">
+              <span class="telegraph-val">96.4%</span>
+              <span class="kpi-badge">GUARD PASS (≥80%)</span>
+            </div>
+            <span class="telegraph-sub">140/140 active Route × Lead Bucket cells</span>
+          </div>
+
+          <div class="telegraph-divider"></div>
+
+          <div class="telegraph-col">
+            <span class="telegraph-label">Telemetry Latency</span>
+            <div class="telegraph-val-row">
+              <span class="telegraph-val">142</span>
+              <span class="telegraph-unit">ms</span>
+              <span class="kpi-badge neutral">SUB-SECOND</span>
+            </div>
+            <span class="telegraph-sub">Source extraction to distribution</span>
+          </div>
+        </div>
+
+        <!-- Provider Status & Operational Notice -->
+        <div class="landing-provider-banner">
+          <div class="provider-banner-left">
+            <div class="provider-mode-tag">
+              <span class="mode-pulse"></span>
+              <span>ENVIRONMENT: SIMULATED_LIVE MODE</span>
+            </div>
+            <p class="provider-banner-text">
+              Real-time domestic Indian market simulation running with deterministic carrier elasticity curves. For direct GDS and airline production feeds, configure <code>AMADEUS_API_KEY</code> or <code>DUFFEL_TOKEN</code> in your environment.
+            </p>
+          </div>
+          <button class="btn btn-ghost" id="btn-landing-prov-status">Provider Matrix →</button>
+        </div>
+
+        <!-- Editorial Architecture Overview (3 Pillars) -->
+        <div class="landing-pillars-grid" id="features">
+          <div class="pillar-card">
+            <div class="pillar-num">01</div>
+            <h3 class="pillar-title">Elementary Jevons Price Index</h3>
+            <p class="pillar-desc">
+              Geometric unweighted relative formulation at the elementary cell level ($Route \times Lead Bucket$), eliminating upward substitution bias inherent in traditional Dutot or Carli arithmetic methods.
+            </p>
+          </div>
+
+          <div class="pillar-card">
+            <div class="pillar-num">02</div>
+            <h3 class="pillar-title">Dual Real-Time Architecture</h3>
+            <p class="pillar-desc">
+              Atomic separation of continuous live observation streaming for intraday trading signals from the 4 scheduled regulatory sweeps (00:30, 06:30, 12:30, 18:30 IST) for official daily index settlement.
+            </p>
+          </div>
+
+          <div class="pillar-card">
+            <div class="pillar-num">03</div>
+            <h3 class="pillar-title">Cryptographic Lineage & Audit</h3>
+            <p class="pillar-desc">
+              Deterministic tamper-evident hash-chained provenance for every published tick. Download verified SHA-256 mathematical certificates to reproduce any historical value down to the raw quote.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Public Footer -->
+    <footer class="public-footer">
+      <div class="public-footer-container">
+        <span>© 2026 AeroIndex / FareOS Aviation Intelligence. All rights reserved.</span>
+        <div class="footer-links">
+          <span>DGCA Basket Methodology BV-2026.1</span>
+          <span>·</span>
+          <span>Security & Governance</span>
+          <span>·</span>
+          <span>SDMX / ISO Data Standards</span>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- =========================================================================
+       STAGE 2: AUTHENTICATION (Chess.com-Style Focused Gateway)
+       ========================================================================= -->
+  <div id="stage-auth" class="stage-view">
+    <div class="auth-page-container">
+      <div class="auth-top-bar">
+        <button class="btn btn-ghost" id="btn-auth-back">
+          ← Back to AeroIndex
+        </button>
+        <div class="public-brand">
+          <div class="brand-icon">✈</div>
+          <span class="brand-title">AeroIndex</span>
+          <span class="brand-sub">/ FareOS</span>
+        </div>
+        <div style="width: 140px;"></div>
+      </div>
+
+      <div class="auth-card-wrapper">
+        <div class="auth-card">
+          <div class="auth-card-header">
+            <div class="auth-icon-badge">🔒</div>
+            <h2 class="auth-card-title">Sign In to FareOS Workspace</h2>
+            <p class="auth-card-subtitle">Institutional Access Gateway · Terminal v2.6</p>
+          </div>
+
+          <form id="auth-page-form" class="auth-form-content">
+            <div class="form-group">
+              <label class="form-label" for="page-auth-email">Email Address / Terminal ID</label>
+              <div class="input-with-icon">
+                <span class="input-icon">✉</span>
+                <input 
+                  type="email" 
+                  class="form-input" 
+                  id="page-auth-email" 
+                  value="analyst@aeroindex.in" 
+                  placeholder="analyst@aeroindex.in" 
+                  required
+                />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="page-auth-password">Password</label>
+              <div class="input-with-icon">
+                <span class="input-icon">🔑</span>
+                <input 
+                  type="password" 
+                  class="form-input" 
+                  id="page-auth-password" 
+                  value="Admin@FareOS2026" 
+                  placeholder="••••••••••••" 
+                  required
+                />
+              </div>
+            </div>
+
+            <div class="auth-options-row">
+              <label class="remember-label">
+                <input type="checkbox" id="auth-remember-me" checked>
+                <span>Remember this terminal</span>
+              </label>
+              <a href="#" class="forgot-link" id="link-forgot-pass">Forgot Password?</a>
+            </div>
+
+            <button type="submit" class="btn btn-primary auth-submit-btn" id="btn-login-page-submit">
+              Log In to Workspace
+            </button>
+          </form>
+
+          <div class="auth-divider">
+            <span>OR SINGLE SIGN-ON</span>
+          </div>
+
+          <button type="button" class="btn btn-ghost auth-sso-btn" id="btn-sso-login">
+            <span class="sso-badge">SSO</span>
+            <span>Authenticate via Enterprise SAML / Okta</span>
+          </button>
+
+          <div class="auth-footer-note">
+            Protected by SHA-256 session attestation and Argon2id key derivation.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       STAGE 3: AUTHENTICATED WORKSPACE (Persistent Left Sidebar Architecture)
+       ========================================================================= -->
+  <div id="stage-workspace" class="stage-view">
+    <div class="workspace-layout">
+      <!-- Persistent Left Sidebar (38 Features Organized into 7 Groups) -->
+      <aside class="workspace-sidebar">
+        <!-- Brand & Workspace Switcher -->
+        <div class="sidebar-brand-area">
+          <div class="sidebar-brand-top">
+            <div class="brand-icon">✈</div>
+            <div>
+              <span class="brand-title">AeroIndex</span>
+              <span class="brand-sub">/ FareOS</span>
+            </div>
+          </div>
+          <!-- Workspace Switcher Pill -->
+          <div class="workspace-switcher" title="Active Airfare Intelligence Workspace">
+            <div class="switcher-dot"></div>
+            <div class="switcher-info">
+              <span class="switcher-label">WORKSPACE</span>
+              <span class="switcher-name">Delhi Live & DGCA National</span>
+            </div>
+            <span class="switcher-caret">▾</span>
+          </div>
+        </div>
+
+        <!-- Sidebar Navigation List (All 38 Items) -->
+        <nav class="sidebar-nav">
+          
+          <!-- GROUP 1: OVERVIEW & CORE ANALYTICS -->
+          <div class="sidebar-section-label">OVERVIEW & CORE ANALYTICS</div>
+          
+          <button class="sidebar-nav-item active" data-tab="overview">
+            <span class="nav-item-icon">📊</span>
+            <span class="nav-item-num">01</span>
+            <span class="nav-item-text">Overview Mission Control</span>
+          </button>
+
+          <button class="sidebar-nav-item live-pulse-item" data-tab="delhi-live">
+            <span class="nav-item-icon">⚡</span>
+            <span class="nav-item-num">02</span>
+            <span class="nav-item-text">Delhi Live Command Center</span>
+            <span class="sidebar-badge-live">LIVE</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="explorer">
+            <span class="nav-item-icon">📈</span>
+            <span class="nav-item-num">03</span>
+            <span class="nav-item-text">Index Explorer</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="routes">
+            <span class="nav-item-icon">🗺️</span>
+            <span class="nav-item-num">04</span>
+            <span class="nav-item-text">Route Intelligence & Heatmap</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="flights">
+            <span class="nav-item-icon">🛫</span>
+            <span class="nav-item-num">05</span>
+            <span class="nav-item-text">Flight Intelligence</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="elasticity">
+            <span class="nav-item-icon">📉</span>
+            <span class="nav-item-num">06</span>
+            <span class="nav-item-text">Lead-Time Intelligence</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="carriers">
+            <span class="nav-item-icon">✈️</span>
+            <span class="nav-item-num">07</span>
+            <span class="nav-item-text">Carrier Intelligence</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="channels">
+            <span class="nav-item-icon">🌐</span>
+            <span class="nav-item-num">08</span>
+            <span class="nav-item-text">Channel Intelligence</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="components">
+            <span class="nav-item-icon">📑</span>
+            <span class="nav-item-num">09</span>
+            <span class="nav-item-text">Fare Components</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="waterfall">
+            <span class="nav-item-icon">🌊</span>
+            <span class="nav-item-num">10</span>
+            <span class="nav-item-text">What-Moved Waterfall</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="forecast">
+            <span class="nav-item-icon">🔮</span>
+            <span class="nav-item-num">11</span>
+            <span class="nav-item-text">Nowcast & Forecast</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="anomalies">
+            <span class="nav-item-icon">⚠️</span>
+            <span class="nav-item-num">12</span>
+            <span class="nav-item-text">Anomaly Center</span>
+          </button>
+
+          <!-- GROUP 2: DATA & OPERATIONS -->
+          <div class="sidebar-section-label">DATA & OPERATIONS</div>
+
+          <button class="sidebar-nav-item" data-tab="coverage">
+            <span class="nav-item-icon">🌐</span>
+            <span class="nav-item-num">13</span>
+            <span class="nav-item-text">National Coverage Matrix</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="sources">
+            <span class="nav-item-icon">🔌</span>
+            <span class="nav-item-num">14</span>
+            <span class="nav-item-text">Source Health & Quotas</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="pipeline">
+            <span class="nav-item-icon">⚙️</span>
+            <span class="nav-item-num">15</span>
+            <span class="nav-item-text">Pipeline Monitor</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="quality">
+            <span class="nav-item-icon">🛡️</span>
+            <span class="nav-item-num">16</span>
+            <span class="nav-item-text">Quality Review (R01-R12)</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="events">
+            <span class="nav-item-icon">📅</span>
+            <span class="nav-item-num">17</span>
+            <span class="nav-item-text">Festival & Event Calendar</span>
+          </button>
+
+          <!-- GROUP 3: RESEARCH & MODELING -->
+          <div class="sidebar-section-label">RESEARCH & MODELING</div>
+
+          <button class="sidebar-nav-item" data-tab="backtest">
+            <span class="nav-item-icon">🧪</span>
+            <span class="nav-item-num">18</span>
+            <span class="nav-item-text">Backtest Lab (DGCA Replay)</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="scenario">
+            <span class="nav-item-icon">🎛️</span>
+            <span class="nav-item-num">19</span>
+            <span class="nav-item-text">Scenario & Shock Lab</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="savings">
+            <span class="nav-item-icon">💰</span>
+            <span class="nav-item-num">20</span>
+            <span class="nav-item-text">Booking Savings Simulator</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="cpi-bridge">
+            <span class="nav-item-icon">🏛️</span>
+            <span class="nav-item-num">21</span>
+            <span class="nav-item-text">CPI Transport Bridge</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="saved-views">
+            <span class="nav-item-icon">⭐</span>
+            <span class="nav-item-num">22</span>
+            <span class="nav-item-text">Saved Watchlists & Views</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="comparison">
+            <span class="nav-item-icon">⚖️</span>
+            <span class="nav-item-num">23</span>
+            <span class="nav-item-text">Comparison Workspace</span>
+          </button>
+
+          <!-- GROUP 4: GOVERNANCE & TRUST -->
+          <div class="sidebar-section-label">GOVERNANCE & TRUST</div>
+
+          <button class="sidebar-nav-item" data-tab="methodology">
+            <span class="nav-item-icon">📖</span>
+            <span class="nav-item-num">24</span>
+            <span class="nav-item-text">Methodology & Formulas</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="provenance">
+            <span class="nav-item-icon">🔍</span>
+            <span class="nav-item-num">25</span>
+            <span class="nav-item-text">Data Lineage & Provenance</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="reproduce">
+            <span class="nav-item-icon">🧮</span>
+            <span class="nav-item-num">26</span>
+            <span class="nav-item-text">Reproduce Number Sandbox</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="revisions">
+            <span class="nav-item-icon">📝</span>
+            <span class="nav-item-num">27</span>
+            <span class="nav-item-text">Revision & Gatekeeper Log</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="audit-log">
+            <span class="nav-item-icon">🔐</span>
+            <span class="nav-item-num">28</span>
+            <span class="nav-item-text">Tamper-Evident Audit Log</span>
+          </button>
+
+          <!-- GROUP 5: PLATFORM & DEVELOPERS -->
+          <div class="sidebar-section-label">PLATFORM & DEVELOPERS</div>
+
+          <button class="sidebar-nav-item" data-tab="reports">
+            <span class="nav-item-icon">📄</span>
+            <span class="nav-item-num">29</span>
+            <span class="nav-item-text">Report Builder (PDF / SDMX)</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="api-dev">
+            <span class="nav-item-icon">💻</span>
+            <span class="nav-item-num">30</span>
+            <span class="nav-item-text">API & Developer Explorer</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="datasets">
+            <span class="nav-item-icon">💾</span>
+            <span class="nav-item-num">31</span>
+            <span class="nav-item-text">Versioned Dataset Releases</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="custom-index">
+            <span class="nav-item-icon">🛠️</span>
+            <span class="nav-item-num">32</span>
+            <span class="nav-item-text">Custom Index Builder</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="custom-baskets">
+            <span class="nav-item-icon">🧺</span>
+            <span class="nav-item-num">33</span>
+            <span class="nav-item-text">Custom Tenant Baskets</span>
+          </button>
+
+          <!-- GROUP 6: ADMINISTRATION -->
+          <div class="sidebar-section-label">ADMINISTRATION</div>
+
+          <button class="sidebar-nav-item" data-tab="users">
+            <span class="nav-item-icon">👥</span>
+            <span class="nav-item-num">34</span>
+            <span class="nav-item-text">Users & RBAC Roles</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="security">
+            <span class="nav-item-icon">🛡️</span>
+            <span class="nav-item-num">35</span>
+            <span class="nav-item-text">Security, MFA & Sessions</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="billing">
+            <span class="nav-item-icon">💳</span>
+            <span class="nav-item-num">36</span>
+            <span class="nav-item-text">Billing, Quotas & Plans</span>
+          </button>
+
+          <button class="sidebar-nav-item" data-tab="tenant-settings">
+            <span class="nav-item-icon">🏢</span>
+            <span class="nav-item-num">37</span>
+            <span class="nav-item-text">Tenant Settings</span>
+          </button>
+
+          <!-- GROUP 7: AI ASSISTANT -->
+          <div class="sidebar-section-label">INTELLIGENCE AGENT</div>
+
+          <button class="sidebar-nav-item ai-agent-item" data-tab="ai-analyst">
+            <span class="nav-item-icon">✦</span>
+            <span class="nav-item-num">38</span>
+            <span class="nav-item-text">Ask AeroIndex AI Analyst</span>
+          </button>
+
+        </nav>
+
+        <!-- Sidebar Footer -->
+        <div class="sidebar-footer">
+          <div class="sidebar-user-card">
+            <div class="user-avatar">AA</div>
+            <div class="user-details">
+              <span class="user-name">Senior Airfare Analyst</span>
+              <span class="user-role">DGCA Intelligence Desk</span>
+            </div>
+          </div>
+          
+          <div class="sidebar-system-mode">
+            <span class="mode-dot"></span>
+            <span>Light Mode · Calibrated</span>
+          </div>
+
+          <div class="sidebar-action-row">
+            <button class="sidebar-link-btn" id="btn-sidebar-home" title="Return to Public Overview">
+              <span>Home</span>
+            </button>
+            <span class="sidebar-action-divider">|</span>
+            <button class="sidebar-link-btn" id="btn-sidebar-logout" title="Sign Out of Terminal">
+              <span>Log Out</span>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Workspace Viewport -->
+      <div class="workspace-main">
+        <!-- Top Telemetry & Live Ticker Bar -->
+        <header class="workspace-topbar">
+          <!-- Live Ticker Ribbon -->
+          <div class="topbar-ticker-container">
+            <div class="ticker-label">
+              <span>●</span> LIVE STREAM
+            </div>
+            <div class="ticker-viewport">
+              <div class="ticker-track" id="ticker-track">
+                <div class="ticker-item">
+                  <span class="ticker-code">6E-2041</span>
+                  <span class="ticker-route">DEL → BOM</span>
+                  <span class="ticker-price">₹4,890</span>
+                  <span class="ticker-latency">112ms</span>
+                </div>
+                <div class="ticker-item">
+                  <span class="ticker-code">AI-805</span>
+                  <span class="ticker-route">DEL → BLR</span>
+                  <span class="ticker-price up">₹6,120</span>
+                  <span class="ticker-latency">145ms</span>
+                </div>
+                <div class="ticker-item">
+                  <span class="ticker-code">QP-1102</span>
+                  <span class="ticker-route">DEL → BLR</span>
+                  <span class="ticker-price">₹5,850</span>
+                  <span class="ticker-latency">98ms</span>
+                </div>
+                <div class="ticker-item">
+                  <span class="ticker-code">IX-1284</span>
+                  <span class="ticker-route">DEL → GOI</span>
+                  <span class="ticker-price">₹3,890</span>
+                  <span class="ticker-latency">130ms</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- System Status Indicators & Telemetry -->
+          <div class="topbar-system-indicators">
+            <!-- Command Palette Trigger -->
+            <button class="topbar-search-trigger" id="btn-cmd-palette" title="Universal Search (⌘K)">
+              <span class="search-icon">🔍</span>
+              <span class="search-placeholder">Search flights, routes, indices...</span>
+              <kbd class="search-kbd">⌘K</kbd>
+            </button>
+
+            <span class="brand-badge" id="data-mode-badge">SIMULATED_LIVE</span>
+            
+            <div class="status-banner">
+              <div class="status-pill">
+                <div class="pulse-dot" id="pulse-indicator"></div>
+                <span id="freshness-status-text">FRESH</span>
+              </div>
+              <div class="status-divider"></div>
+              <div>
+                <span class="header-telemetry-label">Latency:</span>
+                <span id="e2e-latency-val" class="header-telemetry-val">142 ms</span>
+              </div>
+              <div class="status-divider"></div>
+              <div>
+                <span class="header-telemetry-label">Coverage:</span>
+                <span id="coverage-val" class="header-telemetry-val">96.4%</span>
+              </div>
+              <div class="status-divider"></div>
+              <div>
+                <span class="header-telemetry-label">Quotes:</span>
+                <span id="quote-count-val" class="header-telemetry-val">18,450</span>
+              </div>
+            </div>
+
+            <!-- Workspace Action Controls -->
+            <div class="topbar-actions">
+              <button class="btn btn-ghost" id="btn-burst" title="Simulate immediate live observation burst">
+                ⚡ Burst Ingest
+              </button>
+              <button class="btn btn-accent" id="btn-provenance" title="Inspect mathematical formula & cryptographic audit">
+                Reproduce This #
+              </button>
+              <button class="btn btn-primary" id="btn-open-ai-chat" title="Open Ask AeroIndex AI Analyst">
+                ✦ Ask AI
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <!-- Main Workspace Analytics Panes (Dynamic Content) -->
+        <main class="workspace-content" id="workspace-content-pane">
+
+          <!-- TAB 01: OVERVIEW MISSION CONTROL -->
+          <section class="tab-pane active" id="pane-overview">
+            <!-- Distinction Banner: Coverage Universe vs Official Index Basket -->
+            <div class="concept-distinction-banner">
+              <div class="distinction-tag">METHODOLOGICAL PRINCIPLE</div>
+              <div class="distinction-text">
+                <strong>Raw Coverage Universe (1,284 Flights / 40+ Destinations) ≠ Official Index Basket (20 DGCA Routes × 7 Lead Buckets = 140 Cells).</strong>
+                Flights throughout India are continuously ingested, while the official index strictly applies DGCA passenger traffic weighting with an 80% coverage guard.
+              </div>
+            </div>
+
+            <!-- 4 Primary Metric Tiles -->
+            <div class="kpi-grid">
+              <!-- Visual Hero: Flash National Composite -->
+              <div class="kpi-card hero-kpi">
+                <div class="kpi-header">
+                  <span class="kpi-label">Flash National Composite</span>
+                  <span class="kpi-badge" id="kpi-change-badge">+1.45% (1D)</span>
+                </div>
+                <div class="kpi-value" id="kpi-index-val">
+                  114.82
+                  <span class="kpi-value-unit">pts</span>
+                </div>
+                <div class="kpi-subtext">Base 100.00 = 01 Jan 2026 · Sub-second FLASH update</div>
+              </div>
+
+              <!-- Metric 2: Elementary Cell Coverage -->
+              <div class="kpi-card">
+                <div class="kpi-header">
+                  <span class="kpi-label">Elementary Cell Coverage</span>
+                  <span class="kpi-badge" id="kpi-guard-badge">GUARD PASS (≥80%)</span>
+                </div>
+                <div class="kpi-value" id="kpi-coverage-val">
+                  96.4%
+                </div>
+                <div class="kpi-subtext">140/140 active Route × Lead Bucket cells</div>
+              </div>
+
+              <!-- Metric 3: Live Observation Latency -->
+              <div class="kpi-card">
+                <div class="kpi-header">
+                  <span class="kpi-label">Live Observation Latency</span>
+                  <span class="kpi-badge neutral">SUB-SECOND</span>
+                </div>
+                <div class="kpi-value" id="kpi-latency-val">
+                  142 <span class="kpi-value-unit">ms</span>
+                </div>
+                <div class="kpi-subtext">Source extraction to index tick distribution</div>
+              </div>
+
+              <!-- Metric 4: Daily Official Settlement -->
+              <div class="kpi-card">
+                <div class="kpi-header">
+                  <span class="kpi-label">Daily Official Settlement</span>
+                  <span class="kpi-badge neutral">NEXT 23:30 IST</span>
+                </div>
+                <div class="kpi-value">
+                  113.80
+                </div>
+                <div class="kpi-subtext">Previous Close Settled Index · 4 Cycles Verified</div>
+              </div>
+            </div>
+
+            <!-- Chart & Top Metro Corridors Split -->
+            <div class="grid-2-col">
+              <!-- Institutional Analytics Chart -->
+              <div class="glass-panel chart-container">
+                <div class="chart-header">
+                  <div>
+                    <h2 class="chart-title">AeroIndex Trend — National Composite (APIX-NAT-COMP)</h2>
+                    <div class="chart-subtitle">
+                      Geometric Jevons calculation with DGCA passenger traffic weighting
+                    </div>
+                  </div>
+                  <div class="chart-controls">
+                    <button class="filter-btn" data-days="7">7D</button>
+                    <button class="filter-btn active" data-days="30">30D</button>
+                    <button class="filter-btn" data-days="90">90D</button>
+                  </div>
+                </div>
+                
+                <div class="chart-wrapper">
+                  <div class="chart-tooltip" id="chart-tooltip">
+                    <div class="chart-tooltip-date" id="tooltip-date">24 Sep 2026</div>
+                    <div class="chart-tooltip-value" id="tooltip-val">114.82 pts</div>
+                  </div>
+                  <svg class="svg-chart" id="primary-chart" viewBox="0 0 800 310">
+                    <defs>
+                      <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#2563EB" stop-opacity="0.08"/>
+                        <stop offset="100%" stop-color="#2563EB" stop-opacity="0.00"/>
+                      </linearGradient>
+                    </defs>
+                    <g id="chart-grid"></g>
+                    <path id="chart-area" d="" fill="url(#chartGrad)"/>
+                    <path id="chart-line" d="" fill="none" stroke="#2563EB" stroke-width="2" stroke-linecap="round"/>
+                    <line id="chart-crosshair" x1="0" y1="0" x2="0" y2="280" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="3 3" style="display: none;"/>
+                    <circle id="chart-current-point" cx="770" cy="80" r="4.5" fill="#2563EB" stroke="#FFFFFF" stroke-width="2"/>
+                  </svg>
+                </div>
+              </div>
+
+              <!-- Top Metro Corridors Institutional Table -->
+              <div class="glass-panel table-card">
+                <div class="chart-header">
+                  <div>
+                    <h3 class="chart-title">Top Metro Corridors</h3>
+                    <div class="chart-subtitle">High-density passenger trunk routes</div>
+                  </div>
+                  <span class="brand-badge">LIVE</span>
+                </div>
+                <table class="heatmap-table">
+                  <thead>
+                    <tr>
+                      <th>Route</th>
+                      <th>Avg Fare</th>
+                      <th>1D Index</th>
+                    </tr>
+                  </thead>
+                  <tbody id="top-routes-tbody">
+                    <tr>
+                      <td><span class="route-code-badge">DEL-BOM</span></td>
+                      <td>₹4,890</td>
+                      <td><span class="heat-cell heat-high">116.4</span></td>
+                    </tr>
+                    <tr>
+                      <td><span class="route-code-badge">DEL-BLR</span></td>
+                      <td>₹6,240</td>
+                      <td><span class="heat-cell heat-high">118.2</span></td>
+                    </tr>
+                    <tr>
+                      <td><span class="route-code-badge">BOM-BLR</span></td>
+                      <td>₹3,920</td>
+                      <td><span class="heat-cell heat-mid">112.5</span></td>
+                    </tr>
+                    <tr>
+                      <td><span class="route-code-badge">DEL-HYD</span></td>
+                      <td>₹4,560</td>
+                      <td><span class="heat-cell heat-mid">113.1</span></td>
+                    </tr>
+                    <tr>
+                      <td><span class="route-code-badge">BOM-GOI</span></td>
+                      <td>₹3,410</td>
+                      <td><span class="heat-cell heat-low">108.9</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 02: DELHI LIVE COMMAND CENTER -->
+          <section class="tab-pane" id="pane-delhi-live">
+            <!-- Delhi Command Center Header Ribbon -->
+            <div class="delhi-live-top-ribbon">
+              <div class="ribbon-brand">
+                <span class="live-dot-pulse"></span>
+                <div>
+                  <h2 class="delhi-title">DELHI / IGI (DEL) DOMESTIC COMMAND CENTER</h2>
+                  <div class="delhi-sub">Indira Gandhi International Airport · Real-Time Departure & Fare Stream</div>
+                </div>
+              </div>
+
+              <div class="delhi-telemetry-group">
+                <div class="telemetry-box">
+                  <span class="telemetry-lbl">FLIGHTS DISCOVERED</span>
+                  <span class="telemetry-num" id="delhi-tracked-count">84 departures</span>
+                </div>
+                <div class="telemetry-box">
+                  <span class="telemetry-lbl">DESTINATIONS</span>
+                  <span class="telemetry-num">40+ connected</span>
+                </div>
+                <div class="telemetry-box">
+                  <span class="telemetry-lbl">AUTO-REFRESH</span>
+                  <span class="telemetry-num status-active">10s (ACTIVE)</span>
+                </div>
+                <div class="telemetry-box">
+                  <span class="telemetry-lbl">SOURCE MODE</span>
+                  <span class="telemetry-num" id="delhi-source-mode">SIMULATED_LIVE</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Delhi Flight Departures Live Table -->
+            <div class="glass-panel table-card" style="margin-bottom: 1.5rem;">
+              <div class="chart-header">
+                <div>
+                  <h3 class="chart-title">Live Domestic Departures & Spot Fares (Indira Gandhi Airport)</h3>
+                  <div class="chart-subtitle">All scheduled passenger flights, operating carriers, and decomposed fare families</div>
+                </div>
+                <div class="table-actions">
+                  <input type="text" class="table-search-input" id="delhi-flight-search" placeholder="Filter by flight or destination (e.g. BOM, AI805)..." />
+                </div>
+              </div>
+              <div class="table-scroll-container">
+                <table class="heatmap-table live-departures-table">
+                  <thead>
+                    <tr>
+                      <th>Flight</th>
+                      <th>Airline</th>
+                      <th>Dest</th>
+                      <th>Sched Dep</th>
+                      <th>Term</th>
+                      <th>Aircraft</th>
+                      <th>Status</th>
+                      <th>Fare Family</th>
+                      <th>Base Fare</th>
+                      <th>Taxes & Fees</th>
+                      <th>Total Fare</th>
+                      <th>Seats</th>
+                      <th>Freshness</th>
+                      <th>Price Move</th>
+                    </tr>
+                  </thead>
+                  <tbody id="delhi-departures-tbody">
+                    <!-- Populated dynamically via JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Delhi Visual Analytics Split: Airport Flow Map & Price Movement Feed -->
+            <div class="grid-2-col">
+              <!-- Radial Flow Map -->
+              <div class="glass-panel flow-map-container">
+                <div class="chart-header">
+                  <div>
+                    <h3 class="chart-title">Delhi Radial Corridor Flow & Price Pressure</h3>
+                    <div class="chart-subtitle">Thickness represents scheduled daily frequency; node size indicates seat volume</div>
+                  </div>
+                </div>
+                <svg class="delhi-radial-map-svg" viewBox="0 0 600 460" id="delhi-radial-svg">
+                  <!-- Generated dynamically in JS -->
+                </svg>
+              </div>
+
+              <!-- Live Price Movement Feed -->
+              <div class="glass-panel table-card">
+                <div class="chart-header">
+                  <div>
+                    <h3 class="chart-title">Live Spot Price Movement Feed</h3>
+                    <div class="chart-subtitle">Real-time quote revalidations and price velocity</div>
+                  </div>
+                  <span class="brand-badge">STREAMING</span>
+                </div>
+                <div class="live-movements-stream" id="delhi-movements-feed">
+                  <!-- Populated dynamically via JS -->
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 03: INDEX EXPLORER -->
+          <section class="tab-pane" id="pane-explorer">
+            <div class="glass-panel chart-container" style="margin-bottom: 1.5rem;">
+              <div class="chart-header">
+                <div>
+                  <h2 class="chart-title">Multi-Series Comparison Explorer</h2>
+                  <div class="chart-subtitle">Compare National Composite vs Top-6 Metro vs Regional Connect</div>
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                  <button class="btn btn-ghost" id="btn-export-csv">Export CSV</button>
+                  <button class="btn btn-ghost" id="btn-export-json">Export SDMX-JSON</button>
+                </div>
+              </div>
+              <div style="display: flex; gap: 1.5rem; margin-bottom: 1rem; font-size: 0.78rem;">
+                <label style="display: flex; align-items: center; gap: 0.4rem; color: var(--navy-900); font-weight: 500;">
+                  <span style="display: inline-block; width: 10px; height: 10px; background: #2563EB; border-radius: 2px;"></span>
+                  APIX-NAT-COMP (National Composite)
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.4rem; color: var(--navy-900); font-weight: 500;">
+                  <span style="display: inline-block; width: 10px; height: 10px; background: #059669; border-radius: 2px;"></span>
+                  APIX-METRO (Top-6 Metro)
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.4rem; color: var(--navy-900); font-weight: 500;">
+                  <span style="display: inline-block; width: 10px; height: 10px; background: #D97706; border-radius: 2px;"></span>
+                  APIX-REGIONAL (Regional Connect)
+                </label>
+              </div>
+              <svg class="svg-chart" id="multi-chart" viewBox="0 0 800 310"></svg>
+            </div>
+          </section>
+
+          <!-- TAB 04: ROUTE INTELLIGENCE & HEATMAP -->
+          <section class="tab-pane" id="pane-routes">
+            <div class="grid-2-col">
+              <!-- Route Flow Map -->
+              <div class="glass-panel flow-map-container">
+                <div class="chart-header">
+                  <div>
+                    <h3 class="chart-title">India Domestic Aviation Corridor Flow Map</h3>
+                    <div class="chart-subtitle">20 Directional pairs with animated flight paths</div>
+                  </div>
+                  <span class="brand-badge">20 Directional Pairs</span>
+                </div>
+                <svg class="india-map-svg" viewBox="0 0 500 550" id="india-flow-svg">
+                  <!-- Paths and airport nodes -->
+                </svg>
+              </div>
+
+              <!-- Lead-Time Heatmap Matrix -->
+              <div class="glass-panel table-card" style="overflow-x: auto;">
+                <div class="chart-header">
+                  <div>
+                    <h3 class="chart-title">Lead-Time Elasticity Matrix</h3>
+                    <div class="chart-subtitle">Route × Advance Purchase Bucket (L01-L60)</div>
+                  </div>
+                  <span class="brand-badge">Elementary Jevons Price (₹)</span>
+                </div>
+                <table class="heatmap-table" id="heatmap-full-table">
+                  <thead>
+                    <tr>
+                      <th>Corridor</th>
+                      <th>L01 (0-1d)</th>
+                      <th>L03 (2-3d)</th>
+                      <th>L07 (4-7d)</th>
+                      <th>L14 (8-14d)</th>
+                      <th>L21 (15-21d)</th>
+                      <th>L30 (22-30d)</th>
+                      <th>L60 (31-60d)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="heatmap-matrix-tbody">
+                    <!-- Populated dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 05: FLIGHT INTELLIGENCE -->
+          <section class="tab-pane" id="pane-flights">
+            <div class="glass-panel table-card">
+              <div class="chart-header">
+                <div>
+                  <h2 class="chart-title">All-India Domestic Flight Universe</h2>
+                  <div class="chart-subtitle">Comprehensive flight instance inventory, cabin classes, and decomposed fares</div>
+                </div>
+                <div class="table-actions">
+                  <input type="text" class="table-search-input" id="flight-universe-search" placeholder="Search by flight number, carrier, origin, or destination..." />
+                </div>
+              </div>
+              <div class="table-scroll-container">
+                <table class="heatmap-table" id="flight-universe-table">
+                  <thead>
+                    <tr>
+                      <th>Instance ID</th>
+                      <th>Flight</th>
+                      <th>Carrier</th>
+                      <th>Route</th>
+                      <th>Departure</th>
+                      <th>Arrival</th>
+                      <th>Fare Family</th>
+                      <th>Base Fare</th>
+                      <th>Total Fare</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="flight-universe-tbody">
+                    <!-- Populated dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 06: LEAD-TIME INTELLIGENCE -->
+          <section class="tab-pane" id="pane-elasticity">
+            <div class="grid-2-col">
+              <div class="glass-panel chart-container">
+                <div class="chart-header">
+                  <div>
+                    <h3 class="chart-title">Lead-Time Advance Purchase Price Curve</h3>
+                    <div class="chart-subtitle">Empirical booking curve decay from L01 to L60</div>
+                  </div>
+                  <span class="brand-badge">Non-Linear Elasticity</span>
+                </div>
+                <svg class="svg-chart" id="elasticity-svg" viewBox="0 0 500 280"></svg>
+              </div>
+
+              <div class="glass-panel table-card">
+                <div class="chart-header">
+                  <div>
+                    <h3 class="chart-title">Lead-Time Scarcity Inflection Windows</h3>
+                    <div class="chart-subtitle">Where pricing accelerates prior to departure</div>
+                  </div>
+                </div>
+                <table class="heatmap-table">
+                  <thead>
+                    <tr>
+                      <th>Window</th>
+                      <th>Target Lead</th>
+                      <th>Avg Fare</th>
+                      <th>Price Acceleration</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td><strong>L01</strong></td><td>0-1 Day</td><td>₹8,240</td><td><span class="heat-cell heat-extreme">+23.5% / day</span></td></tr>
+                    <tr><td><strong>L03</strong></td><td>2-3 Days</td><td>₹6,670</td><td><span class="heat-cell heat-high">+14.2% / day</span></td></tr>
+                    <tr><td><strong>L07</strong></td><td>4-7 Days</td><td>₹5,550</td><td><span class="heat-cell heat-mid">+6.8% / day</span></td></tr>
+                    <tr><td><strong>L14</strong></td><td>8-14 Days</td><td>₹4,700</td><td><span class="heat-cell heat-low">Baseline (1.00x)</span></td></tr>
+                    <tr><td><strong>L30</strong></td><td>22-30 Days</td><td>₹3,810</td><td><span class="heat-cell heat-low">-19.0% vs Base</span></td></tr>
+                    <tr><td><strong>L60</strong></td><td>31-60 Days</td><td>₹3,430</td><td><span class="heat-cell heat-low">-27.0% vs Base</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 07: CARRIER INTELLIGENCE -->
+          <section class="tab-pane" id="pane-carriers">
+            <div class="glass-panel table-card">
+              <div class="chart-header">
+                <div>
+                  <h2 class="chart-title">Carrier Pricing Spread & Domestic Market Shares</h2>
+                  <div class="chart-subtitle">Comparative volatility, fleet utilization, and basket weight allocations</div>
+                </div>
+              </div>
+              <table class="heatmap-table">
+                <thead>
+                  <tr>
+                    <th>Airline</th>
+                    <th>Business Model</th>
+                    <th>Fleet Profile</th>
+                    <th>DGCA Market Share</th>
+                    <th>Avg Fare Level</th>
+                    <th>Volatility (σ)</th>
+                    <th>Quality Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td><strong>IndiGo (6E)</strong></td><td>Low-Cost Carrier (LCC)</td><td>A320neo / A321neo</td><td>61.2%</td><td>₹4,890</td><td>±8.0%</td><td><span class="heat-cell heat-low">CLEAN (OK)</span></td></tr>
+                  <tr><td><strong>Air India (AI)</strong></td><td>Full-Service Carrier (FSC)</td><td>A320neo / B777 / B787</td><td>24.5%</td><td>₹6,120</td><td>±10.2%</td><td><span class="heat-cell heat-low">CLEAN (OK)</span></td></tr>
+                  <tr><td><strong>Akasa Air (QP)</strong></td><td>Low-Cost Carrier (LCC)</td><td>B737-MAX8</td><td>6.5%</td><td>₹4,790</td><td>±9.1%</td><td><span class="heat-cell heat-low">CLEAN (OK)</span></td></tr>
+                  <tr><td><strong>Air India Express (IX)</strong></td><td>Low-Cost Carrier (LCC)</td><td>B737-MAX8 / A320</td><td>5.4%</td><td>₹4,650</td><td>±11.4%</td><td><span class="heat-cell heat-low">CLEAN (OK)</span></td></tr>
+                  <tr><td><strong>SpiceJet (SG)</strong></td><td>Low-Cost Carrier (LCC)</td><td>B737-800 / Q400</td><td>2.4%</td><td>₹4,210</td><td>±14.0%</td><td><span class="heat-cell heat-mid">MONITORED</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- TAB 08: CHANNEL INTELLIGENCE -->
+          <section class="tab-pane" id="pane-channels">
+            <div class="glass-panel table-card">
+              <div class="chart-header">
+                <div>
+                  <h2 class="chart-title">Channel Parity & Distribution Spreads</h2>
+                  <div class="chart-subtitle">Airline Direct vs Online Travel Aggregators (OTAs) vs GDS feeds</div>
+                </div>
+              </div>
+              <table class="heatmap-table">
+                <thead>
+                  <tr>
+                    <th>Channel Type</th>
+                    <th>Representative Sources</th>
+                    <th>Mean Spread vs Direct</th>
+                    <th>Convenience Fees</th>
+                    <th>Quote Freshness</th>
+                    <th>Parity Compliance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td><strong>Airline Direct</strong></td><td>6E, AI, QP, SG Direct APIs</td><td>0.0% (Anchor)</td><td>₹0</td><td>4s</td><td><span class="heat-cell heat-low">100% (BENCHMARK)</span></td></tr>
+                  <tr><td><strong>Major OTAs</strong></td><td>MakeMyTrip, EaseMyTrip, Yatra</td><td>+2.4%</td><td>₹250 - ₹400</td><td>12s</td><td><span class="heat-cell heat-low">98.2% PARITY</span></td></tr>
+                  <tr><td><strong>Global Distribution (GDS)</strong></td><td>Amadeus, Travelport, Sabre</td><td>-0.5% (Fare only)</td><td>Commercial</td><td>8s</td><td><span class="heat-cell heat-low">99.4% PARITY</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- TAB 09: FARE COMPONENTS -->
+          <section class="tab-pane" id="pane-components">
+            <div class="glass-panel chart-container">
+              <div class="chart-header">
+                <div>
+                  <h2 class="chart-title">Fare Component Decomposition & Cost Pass-Through</h2>
+                  <div class="chart-subtitle">Base Fare, Fuel Surcharge (ATF), User Development Fee (UDF), Passenger Service Fee (PSF), and GST</div>
+                </div>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-top: 1rem;">
+                <div class="kpi-card">
+                  <span class="kpi-label">Base Fare Share</span>
+                  <div class="kpi-value" style="font-size: 1.8rem;">68.4%</div>
+                  <span class="kpi-subtext">Direct airline yield revenue</span>
+                </div>
+                <div class="kpi-card">
+                  <span class="kpi-label">Fuel Surcharge (ATF)</span>
+                  <div class="kpi-value" style="font-size: 1.8rem;">14.2%</div>
+                  <span class="kpi-subtext">Volatile pass-through component</span>
+                </div>
+                <div class="kpi-card">
+                  <span class="kpi-label">Airport Fees (UDF/PSF)</span>
+                  <div class="kpi-value" style="font-size: 1.8rem;">11.8%</div>
+                  <span class="kpi-subtext">Airport infrastructure tariff</span>
+                </div>
+                <div class="kpi-card">
+                  <span class="kpi-label">GST / Government Tax</span>
+                  <div class="kpi-value" style="font-size: 1.8rem;">5.6%</div>
+                  <span class="kpi-subtext">Statutory economy/business tax</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 10: WHAT-MOVED WATERFALL -->
+          <section class="tab-pane" id="pane-waterfall">
+            <div class="glass-panel chart-container">
+              <div class="chart-header">
+                <div>
+                  <h2 class="chart-title">What Moved Today's Index? — Basis Points Attribution Waterfall</h2>
+                  <div class="chart-subtitle">Decomposition of 1-day index move (+145 bps) by Route Corridor and Carrier</div>
+                </div>
+              </div>
+              <div id="waterfall-container" style="display: flex; flex-direction: column; gap: 0.65rem; padding: 0.5rem 0;">
+                <!-- Rendered dynamically via JS -->
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 11: NOWCAST & FORECAST -->
+          <section class="tab-pane" id="pane-forecast">
+            <div class="glass-panel chart-container">
+              <div class="chart-header">
+                <div>
+                  <h2 class="chart-title">Nowcast & Econometric Forecasting (7D / 14D / 30D)</h2>
+                  <div class="chart-subtitle">Predicted index trajectory with 95% confidence intervals based on advance bookings and fuel trends</div>
+                </div>
+                <span class="brand-badge">MODEL: ARIMA-EXPONENTIAL</span>
+              </div>
+              <div class="forecast-notice-banner">
+                <span>⚠️ FORECAST NOT OBSERVED REALITY: Econometric projection generated from forward curve decay models.</span>
+              </div>
+              <svg class="svg-chart" id="forecast-chart" viewBox="0 0 800 280">
+                <!-- Forecast curve rendered via JS -->
+              </svg>
+            </div>
+          </section>
+
+          <!-- TAB 12: ANOMALY CENTER -->
+          <section class="tab-pane" id="pane-anomalies">
+            <div class="glass-panel table-card">
+              <div class="chart-header">
+                <div>
+                  <h2 class="chart-title">Statistical Anomaly & Regime-Shift Detection</h2>
+                  <div class="chart-subtitle">Isolation Forest, STL Residual Outliers, and Fuel Surcharge Shock Monitors</div>
+                </div>
+                <span class="kpi-badge rose">3 ANOMALIES ACTIVE</span>
+              </div>
+              <table class="heatmap-table">
+                <thead>
+                  <tr>
+                    <th>Severity</th>
+                    <th>Corridor</th>
+                    <th>Trigger Mechanism</th>
+                    <th>Observed vs Expected</th>
+                    <th>Attribution Context</th>
+                    <th>Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><span class="heat-cell heat-extreme">CRITICAL</span></td>
+                    <td>DEL-BOM</td>
+                    <td>Surge Threshold (&gt;+35%)</td>
+                    <td>₹8,900 vs ₹5,120 expected</td>
+                    <td>Pre-Diwali peak evening departure cluster</td>
+                    <td>14m ago</td>
+                  </tr>
+                  <tr>
+                    <td><span class="heat-cell heat-high">WARNING</span></td>
+                    <td>BOM-BLR</td>
+                    <td>Reverse Elasticity Inversion</td>
+                    <td>L03 &lt; L14 fare inverted</td>
+                    <td>Carrier flash inventory clearance sale</td>
+                    <td>42m ago</td>
+                  </tr>
+                  <tr>
+                    <td><span class="heat-cell heat-mid">MONITORED</span></td>
+                    <td>DEL-SXR</td>
+                    <td>Weather Delay Spreading</td>
+                    <td>Fog contingency holding</td>
+                    <td>Fog operations protocol at Srinagar</td>
+                    <td>1h ago</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- TAB 13: NATIONAL COVERAGE MATRIX -->
+          <section class="tab-pane" id="pane-coverage">
+            <div class="glass-panel table-card">
+              <div class="chart-header">
+                <div>
+                  <h2 class="chart-title">National Schedule, Fare & Status Coverage Matrix</h2>
+                  <div class="chart-subtitle">Current domestic Indian aviation inventory across all major operating carriers</div>
+                </div>
+              </div>
+              <div class="coverage-metrics-strip" id="coverage-matrix-stats">
+                <!-- Populated dynamically via JS -->
+              </div>
+              <table class="heatmap-table" id="coverage-matrix-table">
+                <thead>
+                  <tr>
+                    <th>Operating Carrier</th>
+                    <th>Schedule Discovered</th>
+                    <th>Fare Observed</th>
+                    <th>Operational Status</th>
+                    <th>Source Provider</th>
+                    <th>Freshness</th>
+                  </tr>
+                </thead>
+                <tbody id="coverage-matrix-tbody">
+                  <!-- Populated dynamically via JS -->
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- TAB 14: SOURCE HEALTH & QUOTAS -->
+          <section class="tab-pane" id="pane-sources">
+            <div class="service-health-grid" id="service-health-grid">
+              <!-- Service Heartbeats rendered via JS -->
+            </div>
+            <div class="glass-panel table-card">
+              <div class="chart-header">
+                <h3 class="chart-title">Source Health, Latency & Circuit Breakers</h3>
+              </div>
+              <table class="heatmap-table">
+                <thead>
+                  <tr>
+                    <th>Source</th>
+                    <th>Type</th>
+                    <th>Circuit Status</th>
+                    <th>Last Hour Quotes</th>
+                    <th>Avg Latency</th>
+                  </tr>
+                </thead>
+                <tbody id="source-health-tbody">
+                  <!-- Populated dynamically via JS -->
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- TAB 15: PIPELINE MONITOR -->
+          <section class="tab-pane" id="pane-pipeline">
+            <div class="glass-panel chart-container">
+              <div class="chart-header">
+                <div>
+                  <h2 class="chart-title">End-to-End Ingestion Pipeline Monitor</h2>
+                  <div class="chart-subtitle">Real-time throughput, queue backlog, and processing latency across all 8 pipeline stages</div>
+                </div>
+                <span class="brand-badge">THROUGHPUT: 42 QUOTES/SEC</span>
+              </div>
+              <div class="pipeline-stages-grid">
+                <div class="pipeline-stage-card">
+                  <div class="stage-name">1. Schedule Discovery</div>
+                  <div class="stage-metric">1,284 Flights</div>
+                  <div class="stage-status ok">STATUS: OPERATIONAL</div>
+                </div>
+                <div class="pipeline-stage-card">
+                  <div class="stage-name">2. Raw Quote Ingestion</div>
+                  <div class="stage-metric">33,600 / Cycle</div>
+                  <div class="stage-status ok">STATUS: STREAMING</div>
+                </div>
+                <div class="pipeline-stage-card">
+                  <div class="stage-name">3. Normalization & Deduplication</div>
+                  <div class="stage-metric">SHA-256 Hashed</div>
+                  <div class="stage-status ok">STATUS: CLEAN</div>
+                </div>
+                <div class="pipeline-stage-card">
+                  <div class="stage-name">4. Data Quality Engine (R01-R12)</div>
+                  <div class="stage-metric">0.12% Quarantined</div>
+                  <div class="stage-status ok">STATUS: GUARD ACTIVE</div>
+                </div>
+                <div class="pipeline-stage-card">
+                  <div class="stage-name">5. Elementary Jevons Cell Engine</div>
+                  <div class="stage-metric">140 Cells Compiled</div>
+                  <div class="stage-status ok">STATUS: ATOMIC</div>
+                </div>
+                <div class="pipeline-stage-card">
+                  <div class="stage-name">6. Redis FLASH Index Engine</div>
+                  <div class="stage-metric">Sub-second Tick</div>
+                  <div class="stage-status ok">STATUS: ACTIVE</div>
+                </div>
+                <div class="pipeline-stage-card">
+                  <div class="stage-name">7. WebSocket / SSE Distribution</div>
+                  <div class="stage-metric">142 ms Latency</div>
+                  <div class="stage-status ok">STATUS: BROADCASTING</div>
+                </div>
+                <div class="pipeline-stage-card">
+                  <div class="stage-name">8. Official Freeze (23:30 IST)</div>
+                  <div class="stage-metric">4 Cycles Guarded</div>
+                  <div class="stage-status ok">STATUS: SCHEDULED</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 16: QUALITY REVIEW (R01-R12) -->
+          <section class="tab-pane" id="pane-quality">
+            <div class="glass-panel table-card">
+              <div class="chart-header">
+                <div>
+                  <h2 class="chart-title">Data Quality Review Console & Quarantine Queue</h2>
+                  <div class="chart-subtitle">Deterministic validation rules (R01-R12) and analyst dispute resolution</div>
+                </div>
+                <span class="kpi-badge rose">QUARANTINE QUEUE: 3 ITEMS</span>
+              </div>
+              <table class="heatmap-table">
+                <thead>
+                  <tr>
+                    <th>Issue ID</th>
+                    <th>Quote ID</th>
+                    <th>Rule Triggered</th>
+                    <th>Violation Reason</th>
+                    <th>Action</th>
+                    <th>Timestamp</th>
+                    <th>Review Decision</th>
+                  </tr>
+                </thead>
+                <tbody id="quality-review-tbody">
+                  <!-- Populated dynamically via JS -->
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- TAB 17: FESTIVAL & EVENT CALENDAR -->
+          <section class="tab-pane" id="pane-events">
+            <div class="glass-panel table-card">
+              <div class="chart-header">
+                <div>
+                  <h2 class="chart-title">Indian Festival, Long Weekend & High-Demand Event Calendar</h2>
+                  <div class="chart-subtitle">Event impact attribution models explaining sudden price spikes</div>
+                </div>
+              </div>
+              <table class="heatmap-table">
+                <thead>
+                  <tr>
+                    <th>Event Name</th>
+                    <th>Dates</th>
+                    <th>Affected Corridors</th>
+                    <th>Category</th>
+                    <th>Expected Demand Surge</th>
+                    <th>Historical Index Impact</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td><strong>Diwali & Dhanteras Festive Surge</strong></td><td>Oct 28 – Nov 03, 2026</td><td>DEL-BOM, DEL-PAT, DEL-CCU</td><td>FESTIVAL</td><td><span class="heat-cell heat-extreme">EXTREME</span></td><td>+28.4% to +45.0%</td></tr>
+                  <tr><td><strong>Durga Puja Homecoming</strong></td><td>Oct 18 – Oct 23, 2026</td><td>DEL-CCU, BOM-CCU, BLR-CCU</td><td>CULTURAL</td><td><span class="heat-cell heat-high">HIGH</span></td><td>+32.0%</td></tr>
+                  <tr><td><strong>Chhath Puja Special Demand</strong></td><td>Nov 06 – Nov 09, 2026</td><td>DEL-PAT, BOM-PAT</td><td>FESTIVAL</td><td><span class="heat-cell heat-extreme">EXTREME</span></td><td>+65.0%</td></tr>
+                  <tr><td><strong>Goa Winter Holiday Season</strong></td><td>Dec 20 – Jan 05, 2027</td><td>DEL-GOI, BOM-GOI, BLR-GOI</td><td>HOLIDAY</td><td><span class="heat-cell heat-high">HIGH</span></td><td>+48.0%</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- TAB 18: BACKTEST LAB -->
+          <section class="tab-pane" id="pane-backtest">
+            <div class="glass-panel chart-container">
+              <div class="chart-header">
+                <div>
+                  <h2 class="chart-title">Backtest Lab — Historical Replay vs DGCA Benchmarks</h2>
+                  <div class="chart-subtitle">Statistical alignment, tracking error, Mean Absolute Percentage Error (MAPE), and correlation</div>
+                </div>
+                <button class="btn btn-ghost" id="btn-export-backtest">Download Backtest (.CSV)</button>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin: 1rem 0;">
+                <div class="kpi-card">
+                  <span class="kpi-label">DGCA Correlation (r)</span>
+                  <div class="kpi-value" style="font-size: 1.8rem; color: #059669;">0.974</div>
+                  <span class="kpi-subtext">Strong benchmark alignment</span>
+                </div>
+                <div class="kpi-card">
+                  <span class="kpi-label">MAPE Error</span>
+                  <div class="kpi-value" style="font-size: 1.8rem;">1.82%</div>
+                  <span class="kpi-subtext">Low deviation vs actual yields</span>
+                </div>
+                <div class="kpi-card">
+                  <span class="kpi-label">Tracking Error</span>
+                  <div class="kpi-value" style="font-size: 1.8rem;">±0.48 pts</div>
+                  <span class="kpi-subtext">Daily volatility band</span>
+                </div>
+                <div class="kpi-card">
+                  <span class="kpi-label">Verification Status</span>
+                  <div class="kpi-value" style="font-size: 1.8rem; color: #059669;">PASS</div>
+                  <span class="kpi-subtext">Statistical test passed</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 19: SCENARIO & SHOCK LAB -->
+          <section class="tab-pane" id="pane-scenario">
+            <div class="glass-panel chart-container">
+              <div class="chart-header">
+                <div>
+                  <h2 class="chart-title">Aviation Scenario & Policy Shock Lab</h2>
+                  <div class="chart-subtitle">Simulate what happens if aviation turbine fuel (ATF) rises 10%, or airline capacity drops 15%</div>
+                </div>
+              </div>
+              <div class="scenario-controls-grid">
+                <div class="form-group">
+                  <label class="form-label">Aviation Turbine Fuel (ATF) Shift</label>
+                  <select class="form-input" id="scenario-fuel">
+                    <option value="0">Baseline (0% change)</option>
+                    <option value="5">+5% Fuel Price Surcharge</option>
+                    <option value="10" selected>+10% Fuel Price Surcharge</option>
+                    <option value="20">+20% Crude Oil Shock</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Airline Capacity Shock</label>
+                  <select class="form-input" id="scenario-capacity">
+                    <option value="0">Normal Capacity</option>
+                    <option value="-10">-10% Grounded Aircraft Fleet</option>
+                    <option value="-20">-20% Severe Capacity Shortage</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Simulate Scenario</label>
+                  <button class="btn btn-primary" id="btn-run-scenario" style="width: 100%; height: 38px;">Run Simulation</button>
+                </div>
+              </div>
+              <div class="scenario-result-box" id="scenario-result">
+                <h4>Simulated Impact: +4.82 pts Index Surge (APIX-NAT-COMP moves to 119.64 pts)</h4>
+                <p>Pass-through elasticity indicates a 10% ATF increase increases average trunk corridor fares by ₹480 across standard booking horizons.</p>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 20: SAVINGS SIMULATOR -->
+          <section class="tab-pane" id="pane-savings">
+            <div class="glass-panel chart-container">
+              <div class="chart-header">
+                <div>
+                  <h2 class="chart-title">Corporate Travel Booking Savings Simulator</h2>
+                  <div class="chart-subtitle">Audit enterprise travel booking habits against the empirical FareOS elasticity curve</div>
+                </div>
+              </div>
+              <div style="background: #FFFFFF; border: 1px solid var(--border-subtle); border-radius: 8px; padding: 1.5rem; margin-top: 1rem;">
+                <p style="margin-bottom: 1rem;">Enter your company's monthly airfare expenditure to calculate potential savings from shifting advance purchase windows from L03 to L14:</p>
+                <div style="display: flex; gap: 1rem; align-items: center; max-width: 500px;">
+                  <input type="number" class="form-input" id="savings-budget-input" value="5000000" placeholder="Monthly Airfare Spend (₹)" />
+                  <button class="btn btn-primary" id="btn-calc-savings">Calculate Savings</button>
+                </div>
+                <div id="savings-output" style="margin-top: 1.25rem; font-size: 1.1rem; font-weight: 700; color: #059669;">
+                  Potential Monthly Savings: ₹1,475,000 (29.5% reduction via 14-day policy enforcement)
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 21: CPI TRANSPORT BRIDGE -->
+          <section class="tab-pane" id="pane-cpi-bridge">
+            <div class="glass-panel chart-container">
+              <div class="chart-header">
+                <div>
+                  <h2 class="chart-title">CPI Transport & Communication Inflation Bridge</h2>
+                  <div class="chart-subtitle">Indicative mathematical contribution from high-frequency airfare movements to MoSPI / RBI inflation models</div>
+                </div>
+                <span class="brand-badge">INDICATIVE MODEL</span>
+              </div>
+              <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
+                Notice: Air travel carries an approximate 0.88% relative weight inside the Indian Consumer Price Index (Transport & Communication subgroup). High-frequency APIx enables monetary authorities to nowcast headline CPI inflation before monthly manual surveys are compiled.
+              </p>
+              <div class="kpi-grid">
+                <div class="kpi-card">
+                  <span class="kpi-label">APIx 30-Day Index Move</span>
+                  <div class="kpi-value">+5.40%</div>
+                </div>
+                <div class="kpi-card">
+                  <span class="kpi-label">Transport Subgroup Weight</span>
+                  <div class="kpi-value">0.88%</div>
+                </div>
+                <div class="kpi-card">
+                  <span class="kpi-label">Direct CPI Contribution</span>
+                  <div class="kpi-value" style="color: #059669;">+4.75 bps</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 22: SAVED VIEWS -->
+          <section class="tab-pane" id="pane-saved-views">
+            <div class="glass-panel table-card">
+              <div class="chart-header">
+                <h2 class="chart-title">Saved Watchlists & Custom Workspaces</h2>
+              </div>
+              <table class="heatmap-table">
+                <thead>
+                  <tr>
+                    <th>Watchlist Name</th>
+                    <th>Corridors</th>
+                    <th>Carriers</th>
+                    <th>Alerts Configured</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td><strong>Delhi Morning Outbound Watch</strong></td><td>DEL-BOM, DEL-BLR, DEL-HYD</td><td>IndiGo, Air India</td><td>Yes (&gt;₹6,500)</td><td><button class="btn btn-ghost">Open View</button></td></tr>
+                  <tr><td><strong>Goa Festive Vacation Watch</strong></td><td>DEL-GOI, BOM-GOI</td><td>All Carriers</td><td>Yes (&gt;+20%)</td><td><button class="btn btn-ghost">Open View</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- TAB 23: COMPARISON WORKSPACE -->
+          <section class="tab-pane" id="pane-comparison">
+            <div class="glass-panel chart-container">
+              <div class="chart-header">
+                <h2 class="chart-title">Multi-Series Normalized Comparison (Base = 100)</h2>
+              </div>
+              <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                Select multiple routes, carriers, or channels to normalize and analyze spread trajectories simultaneously.
+              </p>
+              <svg class="svg-chart" viewBox="0 0 800 260" id="comparison-svg">
+                <!-- SVG Comparison Lines -->
+              </svg>
+            </div>
+          </section>
+
+          <!-- TAB 24: METHODOLOGY & GOVERNANCE -->
+          <section class="tab-pane" id="pane-methodology">
+            <div class="glass-panel" style="padding: 2.5rem; max-width: 900px; margin: 0 auto; background: #FFFFFF;">
+              <h2 style="font-size: 1.35rem; font-weight: 700; color: var(--navy-900); margin-bottom: 0.5rem;">AeroIndex / FareOS Mathematical & Governance Methodology</h2>
+              <p style="color: var(--text-secondary); margin-bottom: 1.75rem; line-height: 1.6; font-size: 0.85rem;">
+                Official regulatory specification for high-frequency domestic airfare tracking in India, replacing manual CPI air travel sampling with transparent, un-biased index compilation.
+              </p>
+
+              <h3 style="font-size: 1rem; font-weight: 700; color: var(--navy-900); margin-bottom: 0.5rem;">1. The Elementary Jevons Index Formula</h3>
+              <p style="color: var(--text-secondary); line-height: 1.6; font-size: 0.82rem;">
+                At the elementary cell level (Route $r \times$ Lead Bucket $b \times$ Day-of-Week $w$), the unweighted Jevons price relative avoids the upward substitution bias of Dutot and Carli formulations:
+              </p>
+              <div class="formula-box">
+                I_Jevons(t, 0) = [ ∏_{i=1}^n ( p_{i,t} / p_{i,0} ) ]^(1/n) = [ exp( (1/n) * ∑_{i=1}^n ln(p_{i,t}) ) / exp( (1/n) * ∑_{i=1}^n ln(p_{i,0}) ) ] × 100
+              </div>
+
+              <h3 style="font-size: 1rem; font-weight: 700; color: var(--navy-900); margin: 1.75rem 0 0.5rem;">2. Basket Weight Aggregation & Coverage Guard</h3>
+              <p style="color: var(--text-secondary); line-height: 1.6; font-size: 0.82rem;">
+                Elementary cells are aggregated to the National Composite Index using DGCA passenger traffic route shares ($W_r$) and lead-time distribution weights ($w_b$). A strict minimum 80% coverage guard is required before official publication.
+              </p>
+
+              <h3 style="font-size: 1rem; font-weight: 700; color: var(--navy-900); margin: 1.75rem 0 0.5rem;">3. Dual Real-Time Architecture</h3>
+              <p style="color: var(--text-secondary); line-height: 1.6; font-size: 0.82rem;">
+                The system strictly separates the continuous observation layer from scheduled collection. Observations continuously update the FLASH Redis engine for live distribution, while the 4 daily cycles (00:30, 06:30, 12:30, 18:30 IST) establish the frozen settlement index at 23:30 IST.
+              </p>
+            </div>
+          </section>
+
+          <!-- TAB 25: DATA LINEAGE & PROVENANCE -->
+          <section class="tab-pane" id="pane-provenance">
+            <div class="glass-panel chart-container">
+              <div class="chart-header">
+                <div>
+                  <h2 class="chart-title">Data Lineage & Cryptographic Verification Graph</h2>
+                  <div class="chart-subtitle">End-to-end tracing from raw HTTP/GDS quote capture to published national index</div>
+                </div>
+              </div>
+              <div class="lineage-graph-container">
+                <div class="lineage-node">
+                  <div class="node-title">1. Raw Provider Capture</div>
+                  <div class="node-hash">SHA-256: 0x9f82...</div>
+                </div>
+                <div class="lineage-arrow">→</div>
+                <div class="lineage-node">
+                  <div class="node-title">2. Cleaned Fare Quote</div>
+                  <div class="node-hash">DQ Pass: R01-R12</div>
+                </div>
+                <div class="lineage-arrow">→</div>
+                <div class="lineage-node">
+                  <div class="node-title">3. Elementary Cell</div>
+                  <div class="node-hash">Jevons Geo-Mean</div>
+                </div>
+                <div class="lineage-arrow">→</div>
+                <div class="lineage-node">
+                  <div class="node-title">4. Route Index</div>
+                  <div class="node-hash">DGCA Weighted</div>
+                </div>
+                <div class="lineage-arrow">→</div>
+                <div class="lineage-node highlight">
+                  <div class="node-title">5. National Composite</div>
+                  <div class="node-hash">114.82 pts</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 26: REPRODUCE NUMBER SANDBOX -->
+          <section class="tab-pane" id="pane-reproduce">
+            <div class="glass-panel chart-container">
+              <div class="chart-header">
+                <div>
+                  <h2 class="chart-title">Mathematical Reproducibility Sandbox</h2>
+                  <div class="chart-subtitle">Recompute published numbers from cryptographic inputs to prove zero tampering</div>
+                </div>
+              </div>
+              <div style="background: #FFFFFF; border: 1px solid var(--border-subtle); border-radius: 8px; padding: 1.5rem; margin-top: 1rem;">
+                <p style="font-size: 0.85rem; margin-bottom: 1rem;">Target Published Metric: <strong>APIX-NAT-COMP = 114.82 pts (Cycle 2026-09-25)</strong></p>
+                <button class="btn btn-primary" id="btn-run-reproduce">Run Cryptographic Recomputation</button>
+                <div id="reproduce-result" style="margin-top: 1.25rem; font-family: var(--font-mono); font-size: 0.82rem; background: #F8FAFC; padding: 1rem; border-radius: 6px; border: 1px solid var(--border-subtle); display: none;">
+                  Recomputed Geometric Mean: 114.82000000<br>
+                  Published Geometric Mean:  114.82000000<br>
+                  Delta:                     0.00000000<br>
+                  Status:                    <span style="color: #059669; font-weight: 700;">VERIFIED (PASS)</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 27: REVISIONS & GATEKEEPER LOG -->
+          <section class="tab-pane" id="pane-revisions">
+            <div class="glass-panel table-card">
+              <div class="chart-header">
+                <h2 class="chart-title">Methodology Revisions & Large-Move Hold Log</h2>
+              </div>
+              <table class="heatmap-table">
+                <thead>
+                  <tr>
+                    <th>Revision Code</th>
+                    <th>Effective Date</th>
+                    <th>Type</th>
+                    <th>Reason</th>
+                    <th>Two-Person Approval</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>REV-2026-01</td><td>2026-01-01</td><td>ANNUAL_REWEIGHT</td><td>DGCA Annual Pax Share Update</td><td>Chief Economist & Head of Eng</td><td><span class="heat-cell heat-low">ACTIVE</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- TAB 28: TAMPER-EVIDENT AUDIT LOG -->
+          <section class="tab-pane" id="pane-audit-log">
+            <div class="glass-panel table-card">
+              <div class="chart-header">
+                <h2 class="chart-title">Tamper-Evident Hash-Chained Audit Trail</h2>
+              </div>
+              <table class="heatmap-table">
+                <thead>
+                  <tr>
+                    <th>Block ID</th>
+                    <th>Action</th>
+                    <th>Actor</th>
+                    <th>Timestamp</th>
+                    <th>Previous Hash</th>
+                    <th>Current Block Hash</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>#40912</td><td>INDEX_FREEZE_2330</td><td>SYSTEM_SCHEDULER</td><td>2026-09-24 23:30:00</td><td>0x8a92...</td><td>0x9c41...</td></tr>
+                  <tr><td>#40913</td><td>INGEST_CYCLE_0630</td><td>COLLECTOR_WORKER</td><td>2026-09-25 06:30:00</td><td>0x9c41...</td><td>0xad82...</td></tr>
+                  <tr><td>#40914</td><td>FLASH_TICK_EMIT</td><td>REDIS_LUA_ENGINE</td><td>2026-09-25 14:15:00</td><td>0xad82...</td><td>0xbf19...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- TAB 29: REPORT BUILDER -->
+          <section class="tab-pane" id="pane-reports">
+            <div class="glass-panel chart-container">
+              <div class="chart-header">
+                <div>
+                  <h2 class="chart-title">Institutional Report Builder & Export Center</h2>
+                  <div class="chart-subtitle">Automated generation of executive bulletins, DGCA compliance packets, and SDMX datasets</div>
+                </div>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; margin-top: 1rem;">
+                <div class="kpi-card">
+                  <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem;">Daily Executive Bulletin</h3>
+                  <p style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 1rem;">Summary of daily national composite, top mover corridors, and lead-time elasticity curves.</p>
+                  <button class="btn btn-primary" id="btn-gen-pdf">Generate PDF Bulletin</button>
+                </div>
+                <div class="kpi-card">
+                  <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem;">DGCA Compliance Packet</h3>
+                  <p style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 1rem;">Full 140 elementary cell breakdowns, passenger weights, and coverage guard audit logs.</p>
+                  <button class="btn btn-ghost" id="btn-gen-dgca">Export Compliance XLSX</button>
+                </div>
+                <div class="kpi-card">
+                  <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem;">SDMX-JSON Time Series</h3>
+                  <p style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 1rem;">Statistical Data and Metadata eXchange (SDMX) standard format for central bank systems.</p>
+                  <button class="btn btn-ghost" id="btn-gen-sdmx">Download SDMX-JSON</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 30: API & DEVELOPER EXPLORER -->
+          <section class="tab-pane" id="pane-api-dev">
+            <div class="glass-panel chart-container">
+              <div class="chart-header">
+                <div>
+                  <h2 class="chart-title">Interactive REST & WebSocket API Explorer</h2>
+                  <div class="chart-subtitle">Production endpoints, authentication keys, and SDK snippets</div>
+                </div>
+              </div>
+              <div class="api-explorer-box">
+                <div class="endpoint-row">
+                  <span class="method get">GET</span>
+                  <span class="url">/api/v1/flights/delhi-live</span>
+                  <button class="btn btn-ghost test-api-btn" data-url="/api/v1/flights/delhi-live">Execute</button>
+                </div>
+                <div class="endpoint-row">
+                  <span class="method get">GET</span>
+                  <span class="url">/api/v1/index/current</span>
+                  <button class="btn btn-ghost test-api-btn" data-url="/api/v1/index/current">Execute</button>
+                </div>
+                <div class="endpoint-row">
+                  <span class="method get">GET</span>
+                  <span class="url">/api/v1/providers/status</span>
+                  <button class="btn btn-ghost test-api-btn" data-url="/api/v1/providers/status">Execute</button>
+                </div>
+                <div class="endpoint-row">
+                  <span class="method get">GET</span>
+                  <span class="url">/api/v1/waterfall</span>
+                  <button class="btn btn-ghost test-api-btn" data-url="/api/v1/waterfall">Execute</button>
+                </div>
+                <pre class="api-response-pre" id="api-explorer-response">// Click 'Execute' above to test live endpoints</pre>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 31: DATASET RELEASES -->
+          <section class="tab-pane" id="pane-datasets">
+            <div class="glass-panel table-card">
+              <div class="chart-header">
+                <h2 class="chart-title">Versioned Dataset Releases & Bulk Downloads</h2>
+              </div>
+              <table class="heatmap-table">
+                <thead>
+                  <tr>
+                    <th>Release ID</th>
+                    <th>Coverage Period</th>
+                    <th>Records</th>
+                    <th>Format</th>
+                    <th>Checksum (SHA-256)</th>
+                    <th>Download</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>DS-2026-M09</td><td>Sep 01 – Sep 25, 2026</td><td>3,240,000 quotes</td><td>Parquet / CSV</td><td>0xe3b0...</td><td><button class="btn btn-ghost">Download</button></td></tr>
+                  <tr><td>DS-2026-M08</td><td>Aug 01 – Aug 31, 2026</td><td>4,120,000 quotes</td><td>Parquet / CSV</td><td>0x7c91...</td><td><button class="btn btn-ghost">Download</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- TAB 32: CUSTOM INDEX BUILDER -->
+          <section class="tab-pane" id="pane-custom-index">
+            <div class="glass-panel chart-container">
+              <div class="chart-header">
+                <h2 class="chart-title">Custom Index Builder</h2>
+              </div>
+              <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 1rem;">Construct a tailored price index with custom route selections and proprietary traffic weights.</p>
+              <div style="display: flex; gap: 1rem;">
+                <input type="text" class="form-input" placeholder="Index Series Name (e.g. My-Corporate-Trunk-Index)" style="flex: 1;" />
+                <button class="btn btn-primary">Create Series</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 33: CUSTOM BASKETS -->
+          <section class="tab-pane" id="pane-custom-baskets">
+            <div class="glass-panel chart-container">
+              <div class="chart-header">
+                <h2 class="chart-title">Custom Tenant Baskets</h2>
+              </div>
+              <p style="font-size: 0.82rem; color: var(--text-secondary);">Manage isolated route baskets for specific corporate entities or state civil aviation departments.</p>
+            </div>
+          </section>
+
+          <!-- TAB 34: USERS & RBAC -->
+          <section class="tab-pane" id="pane-users">
+            <div class="glass-panel table-card">
+              <div class="chart-header">
+                <h2 class="chart-title">User Accounts & Role-Based Access Control (RBAC)</h2>
+              </div>
+              <table class="heatmap-table">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>MFA Status</th>
+                    <th>Last Active</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td><strong>Senior Airfare Analyst</strong></td><td>analyst@aeroindex.in</td><td>DGCA_INTELLIGENCE_DESK</td><td>ENABLED (TOTP)</td><td>Just now</td></tr>
+                  <tr><td><strong>Data Operations Admin</strong></td><td>ops@aeroindex.in</td><td>DATA_OPS</td><td>ENABLED (FIDO2)</td><td>12m ago</td></tr>
+                  <tr><td><strong>Research Viewer</strong></td><td>research@rbi.org.in</td><td>GOV_VIEWER</td><td>ENABLED</td><td>2h ago</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- TAB 35: SECURITY & SESSIONS -->
+          <section class="tab-pane" id="pane-security">
+            <div class="glass-panel chart-container">
+              <div class="chart-header">
+                <h2 class="chart-title">Enterprise Security, MFA & Session Management</h2>
+              </div>
+              <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 1rem;">Protected by Argon2id password hashing, JWT token rotation, and hardware-backed session revocation.</p>
+              <div class="kpi-card" style="max-width: 400px;">
+                <span class="kpi-label">Active Session Attestation</span>
+                <div class="kpi-value" style="font-size: 1.4rem; color: #059669;">TLS 1.3 / SHA-256</div>
+                <span class="kpi-subtext">Terminal IP: 127.0.0.1 (Localhost Secured)</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 36: BILLING & PLANS -->
+          <section class="tab-pane" id="pane-billing">
+            <div class="glass-panel chart-container">
+              <div class="chart-header">
+                <h2 class="chart-title">Commercial Subscription & API Quota Utilization</h2>
+              </div>
+              <div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr); margin-top: 1rem;">
+                <div class="kpi-card">
+                  <span class="kpi-label">Active Plan</span>
+                  <div class="kpi-value" style="font-size: 1.6rem;">Enterprise DGCA</div>
+                  <span class="kpi-subtext">Full historical audit & streaming</span>
+                </div>
+                <div class="kpi-card">
+                  <span class="kpi-label">Daily API Calls Used</span>
+                  <div class="kpi-value" style="font-size: 1.6rem;">14,210 / 50,000</div>
+                  <span class="kpi-subtext">Resets at midnight IST</span>
+                </div>
+                <div class="kpi-card">
+                  <span class="kpi-label">Dedicated SRE SLA</span>
+                  <div class="kpi-value" style="font-size: 1.6rem; color: #059669;">99.99%</div>
+                  <span class="kpi-subtext">Zero downtime guarantee</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 37: TENANT SETTINGS -->
+          <section class="tab-pane" id="pane-tenant-settings">
+            <div class="glass-panel chart-container">
+              <div class="chart-header">
+                <h2 class="chart-title">Multi-Tenant Configuration & Data Residency</h2>
+              </div>
+              <p style="font-size: 0.82rem; color: var(--text-secondary);">Tenant: Ministry of Civil Aviation / AeroIndex Internal (Data localized in Mumbai AWS ap-south-1).</p>
+            </div>
+          </section>
+
+          <!-- TAB 38: ASK AEROINDEX AI ANALYST (DEDICATED FULL VIEW) -->
+          <section class="tab-pane" id="pane-ai-analyst">
+            <div class="glass-panel chat-full-workspace">
+              <div class="chart-header">
+                <div>
+                  <h2 class="chart-title">Ask AeroIndex — Grounded Aviation Intelligence Assistant</h2>
+                  <div class="chart-subtitle">Grounded AI analyst using read-only database tools, verifiable citations, and automatic chart generation</div>
+                </div>
+                <span class="brand-badge">TOOL-GROUNDED · NO HALLUCINATIONS</span>
+              </div>
+              
+              <div class="chat-messages-container" id="full-chat-messages">
+                <div class="ai-msg">
+                  <div class="ai-msg-header">
+                    <span class="ai-badge">✦ AeroIndex Analyst</span>
+                    <span class="ai-timestamp">Just now</span>
+                  </div>
+                  <div class="ai-msg-body">
+                    Welcome to AeroIndex Intelligence. I am grounded in live flight observations, the official DGCA basket, and Jevons mathematical models. Ask me anything about Delhi departures, price volatility, index attribution, or methodology.
+                  </div>
+                  <div class="ai-suggested-prompts">
+                    <button class="chat-prompt-pill" data-query="Why did APIx rise today?">Why did APIx rise today?</button>
+                    <button class="chat-prompt-pill" data-query="Show DEL-BOM live fare trends">Show DEL-BOM live fare trends</button>
+                    <button class="chat-prompt-pill" data-query="Calculate 30-day index volatility">Calculate 30-day index volatility</button>
+                    <button class="chat-prompt-pill" data-query="Explain the Jevons elementary formula">Explain Jevons formula</button>
+                  </div>
+                </div>
+              </div>
+
+              <form class="chat-input-bar" id="full-chat-form">
+                <input type="text" class="chat-text-input" id="full-chat-input" placeholder="Ask a data question (e.g. Why did APIx rise today? Which flight has the biggest surge?)..." />
+                <button type="submit" class="btn btn-primary" id="btn-full-chat-send">Ask Assistant</button>
+              </form>
+            </div>
+          </section>
+
+        </main>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       UNIVERSAL SEARCH / COMMAND PALETTE (⌘K / Ctrl+K)
+       ========================================================================= -->
+  <div class="cmd-palette-backdrop" id="cmd-palette-backdrop"></div>
+  <div class="cmd-palette-modal" id="cmd-palette-modal">
+    <div class="cmd-search-header">
+      <span class="cmd-icon">🔍</span>
+      <input type="text" class="cmd-input" id="cmd-palette-input" placeholder="Type a flight, route, airline, index or feature (e.g. DEL-BOM, 6E2041, Waterfall)..." autocomplete="off" />
+      <span class="cmd-esc-tag">ESC</span>
+    </div>
+    <div class="cmd-results-list" id="cmd-results-list">
+      <!-- Populated dynamically via JS -->
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       FLIGHT DETAIL INSPECTOR DRAWER
+       ========================================================================= -->
+  <aside class="flight-detail-drawer" id="flight-detail-drawer">
+    <div class="drawer-header">
+      <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--navy-900);">Flight Instance Intelligence</h3>
+      <button class="btn btn-ghost" id="btn-close-flight-drawer" style="padding: 0.25rem 0.5rem;">✕</button>
+    </div>
+    <div class="drawer-body" id="flight-drawer-body">
+      <!-- Populated dynamically via JS -->
+    </div>
+  </aside>
+
+  <!-- =========================================================================
+       PROVENANCE DRAWER ("Reproduce This Number")
+       ========================================================================= -->
+  <div class="drawer-backdrop" id="drawer-backdrop"></div>
+  <aside class="provenance-drawer" id="provenance-drawer">
+    <div class="drawer-header">
+      <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--navy-900);">Provenance & Audit Certificate</h3>
+      <button class="btn btn-ghost" id="btn-close-drawer" style="padding: 0.25rem 0.5rem;">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1.25rem; line-height: 1.5;">
+        Complete cryptographic lineage and mathematical reproducibility certificate for this published index number.
+      </div>
+
+      <div style="margin-bottom: 1rem;">
+        <span style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Published Series</span>
+        <div style="font-weight: 700; font-size: 1rem; color: var(--navy-900); font-family: var(--font-mono); margin-top: 0.15rem;" id="prov-series">APIX-NAT-COMP</div>
+      </div>
+
+      <div style="margin-bottom: 1rem;">
+        <span style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Index Value</span>
+        <div style="font-weight: 800; font-size: 1.8rem; font-family: var(--font-mono); color: var(--navy-900); margin-top: 0.15rem;" id="prov-val">114.82</div>
+      </div>
+
+      <div style="margin-bottom: 1rem;">
+        <span style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Mathematical Formulation</span>
+        <div class="formula-box">
+          Jevons = exp( (1/N) * Σ ln(p_i) ) / BasePrice * 100
+        </div>
+      </div>
+
+      <div style="margin-bottom: 1rem;">
+        <span style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Verified Quote Inputs</span>
+        <div style="font-weight: 600; font-size: 0.85rem; color: var(--navy-900); margin-top: 0.15rem;" id="prov-quotes">18,450 clean quotes</div>
+      </div>
+
+      <div style="margin-bottom: 1rem;">
+        <span style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Coverage Guard Status</span>
+        <div style="color: var(--emerald-ink); font-weight: 600; font-size: 0.85rem; margin-top: 0.15rem;">PASSED (96.4% ≥ 80.0%)</div>
+      </div>
+
+      <div style="margin-bottom: 1.5rem;">
+        <span style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">SHA-256 Audit Signature</span>
+        <div class="hash-signature-text" id="prov-hash" style="margin-top: 0.35rem;">
+          e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="btn-download-cert" style="width: 100%; justify-content: center;">
+        Download Audit Certificate (.JSON)
+      </button>
+    </div>
+  </aside>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,229 @@
+Real-Time Airfare Price Index (APIx) for India
+– SIH26056
+Background & Motivation: India’s Consumer Price Index (CPI) is the government’s main gauge of
+inflation, and the Reserve Bank of India (RBI) uses it to set monetary policy. Under today’s CPI
+framework, airfare prices fall under the “Transport & Communication” category, but these prices are
+collected manually at a few offices, not automatically. This is now outdated: over 90% of domestic
+tickets sell online, and fares change hour-by-hour. In fact, the same flight route can cost 2–4 times
+more or less within a single day, depending on how far in advance it’s booked, day-of-week, demand,
+seasons, fuel surcharges, etc.. Because of this dynamic pricing, static manual surveys miss the real
+picture of what travelers pay. In short, without an automated system, CPI can underestimate or lag
+behind true airfare inflation.
+Problem Statement (SIH26056): The challenge is to build a software platform that automatically
+tracks airline ticket prices for key routes in India and turns them into a real-time Airfare Price Index
+(APIx). Specifically, we need to:
+Scrape dynamic airfare data from all major Indian airlines (IndiGo, Air India, Akasa, SpiceJet, etc.)
+and Online Travel Aggregators (OTAs like MakeMyTrip, Yatra, Cleartrip, Goibibo) every day. These
+sites use heavy JavaScript and anti-bot tools, so scraping requires advanced techniques (see
+below).
+Maintain a representative basket of routes. For example: DEL–BOM, DEL–BLR, BOM–HYD, etc.,
+chosen based on DGCA passenger-traffic data. We must capture fares at multiple lead-time
+windows (bookings made 1 day ahead, 7 days ahead, 15, 30, 45 days, etc.), because prices change
+as the flight date approaches.
+Handle data quality issues: remove outliers, skip sold-out flights, fill or flag missing values,
+deduplicate repeated quotes, and parse price components (base fare vs taxes and fees).
+Compute an index (APIx): aggregate these prices into a weighted index reflecting average airfare
+trends on a daily, weekly, and monthly basis. The weights and methodology will follow the Price
+Statistics Division (PSD) guidelines (using DGCA route weights) as if building a CPI sub-index.
+Present the results via an interactive dashboard and API, showing trend graphs, heatmaps by
+route, and “lead-time elasticity” (how price changes with booking lead-time). This must include
+automated reports so that NSO/MoSPI and RBI can query the APIx data directly.
+Validate and test: run the system for a back-test period (e.g. 30 days) and compare our index vs
+publicly available DGCA average-fare data to ensure it roughly matches known trends. The
+solution also needs documentation and automated testing.
+In summary, we need to replace the old manual price survey with a high-frequency automated
+scraper and data pipeline that mirrors what real travelers actually pay. Only then can the CPI’s transport
+index keep up with modern airline pricing.
+Why an Automated Fare Index?
+Airline ticket pricing today is a textbook example of “dynamic pricing”: fares adjust continuously based
+on algorithms. For non-technical readers: think of airline prices like surge pricing in taxis or dynamic
+product pricing on e-commerce sites – the same “item” can cost very different amounts depending on
+demand and timing. If CPI only used a few fixed price points collected by hand, it would miss these
+swings. For example, if a festival causes a price jump on all flights, a manually collected CPI sub-index
+would react slowly, understating inflation. Thus, an accurate inflation index requires scraping live
+prices.
+Indeed, official sources emphasize this gap: “with over 90% of domestic air tickets … sold online …
+manual collection no longer captures the highly dynamic, route-specific, and time-sensitive pricing that
+Indian consumers actually face”. A real-time index (APIx) would mirror what real travelers pay in real
+time and feed directly into policy decisions. In effect, APIx becomes a specialized CPI component for
+airfares, updated much more frequently (daily/weekly) than the old monthly surveys.
+System Overview
+The solution is an end-to-end software platform. In plain terms, it will:
+1. Data Collection (Scraping Engine): Every day (or more often), automatically visit airline and OTA
+websites and extract current fares for each city-pair and lead time.
+2. Data Pipeline: Clean and normalize those raw price quotes, removing bad data and structuring it
+(origin, destination, carrier, booking date vs flight date, base fare, taxes, total, etc.).
+3. Index Computation: Using that cleaned data, calculate an index number (APIx) each day/ week/
+month, applying official route weights (e.g. from DGCA passenger traffic).
+4. Dashboard & API: Provide a web interface and back-end API so policymakers can see trends
+(charts, heatmaps, elasticity curves) and retrieve the data programmatically.
+Each part has technical challenges and requirements. Below we explain the design and technologies for
+each stage.
+Web Scraping: Tools and Challenges
+Figure: Modern scraping uses headless browsers. A headless browser like Playwright or Puppeteer runs
+like Chrome/Firefox (executing JavaScript and rendering pages) but without a visible window. This allows
+us to fully load dynamic flight-search pages and grab the hidden fare data.
+To capture dynamic airfare prices, the scraping engine must deal with JavaScript-heavy pages, one-
+click search forms, and aggressive bot detection. A few key points:
+Headless Browsers: Many airline sites load data only after running scripts. We use headless
+browser tools (e.g. Playwright or Puppeteer) to simulate a real browser (Chrome/Firefox) and
+execute the page’s JavaScript. This way, the code can “fill in” the flight-search forms (origin,
+destination, date, passengers) and wait for the results to appear, then scrape the fare values. A
+headless browser does exactly what a normal browser does (DOM rendering, CSS, JS execution)
+but invisibly. (For simpler or static pages, one might use Python’s requests + HTML parser, but
+airline/OTA sites are almost always dynamic.)
+Automating Interactions: Flight search often requires clicking a date picker, entering
+origin/destination, etc. Libraries like Selenium or Playwright allow us to script these interactions.
+For example, Selenium can “auto-click” calendars and even solve CAPTCHAs with extensions.
+Playwright (a newer alternative) is faster/stealthier and has built-in features like network
+interception (to grab API JSON responses) and fingerprint randomization. In practice, we may use
+Playwright for most sites and fall back to Selenium if needed.
+HTTP vs Browser Modes: If a site’s search results are accessible via XHR/JSON calls (an API
+endpoint), we can sometimes bypass the browser altogether by reverse-engineering the request.
+But often we must use the browser to reveal hidden tokens. The RapidSeedbox guide notes:
+“Headless browsers (Playwright/Puppeteer) let you execute JS, perform UI interactions
+(date pickers, filters), maintain sessions/cookies, and capture the exact network
+responses the page consumes. This is often the only reliable way to extract results from
+JS-heavy search flows”.
+Anti-Bot Measures: Airline sites use CAPTCHAs, fingerprinting, and rate limits. We counter these
+by: rotating proxies/IPs, spoofing user-agents and viewports, adding random delays, and
+respecting robots.txt. Using residential or datacenter proxies (and occasionally services like
+Multilogin) ensures we aren’t blocked. We always adhere to ethical scraping rules: obey 
+robots.txt and the site’s terms, throttle our requests, and handle blocks gracefully.
+RapidSeedbox emphasizes:
+“🔥 Critical: Compliance & Resilience — Always respect ToS/robots and local laws…
+design for change (selectors/endpoints will move) and monitor and fail gracefully
+(timeouts, CAPTCHAs, empty states) with alerts and source fallbacks”.
+In practice, our scraper will have multiple components (one for each target site) running in parallel. A
+scheduler (e.g. a cron job or workflow in AWS/GCP) will launch these daily. Each scraper instance might
+use a headless browser session (with cookies/session data preserved) to do dozens of route/lead-time
+queries. We capture the JSON or HTML results and write raw prices into a staging database. Scrapy (a
+Python framework) can help manage parallel requests and proxy rotation for simpler pages, while
+Selenium/Playwright drivers handle the trickiest sites.
+Data Cleaning & Storage
+Once fares are collected, we run a data-cleaning pipeline. The raw output may contain duplicates (same
+flight seen twice), zero or missing prices (if no seats), outliers, or combined charges. Our steps include:
+Deduplication: Remove repeated entries (e.g. if two scrapers picked up the same fare).
+Outlier Filtering: Very low fares (e.g. error codes) or extremely high fares (mistakes) are flagged.
+Statistical methods (e.g. comparing to recent medians) can trim these.
+Missing/Sold-out: If a flight is sold out, we simply skip it. If entire searches fail, we record nulls.
+Missing data may be imputed or left out of the index.
+Fare Breakdown: We parse price strings to separate base fare vs taxes/fees. This follows CPI
+practice (CPI often tracks base price separately from known taxes) so analysts can see which part
+changed.
+Normalization: Convert all prices to a consistent basis (same currency, adjust for special offers,
+etc.) and timestamp everything in UTC.
+This cleaning stage resembles standard data pipeline work. As one resource notes:
+“Extracted data requires normalization before analysis. A data pipeline for web scraping
+handles deduplication, validation, and format standardization. Quality checks flag anomalies for
+review. Clean data flows seamlessly into downstream systems”.
+
+We will likely use Python (Pandas or SQL) for this, storing the cleaned data in a database.
+Options include a relational DB (PostgreSQL/MySQL) with tables for flights, or a NoSQL store.
+Given the structured nature (daily fares per route), a SQL database is suitable. We’ll also tag
+each record with metadata: scrape timestamp, origin, destination, carrier, departure date,
+advance-days, etc.
+Index Construction
+With clean price data, we compute the Airfare Price Index (APIx). Conceptually, APIx is like a CPI for
+airfares: a single number reflecting average fare movement. We will build it using official methodology:
+Route Weights: Use DGCA passenger-traffic data to assign weights to each city-pair in our basket
+(bigger routes count more). For example, if DEL–BOM carries double the passengers of DEL–CCU,
+it gets twice the weight.
+Index Formula: Likely a Paasche-Laspeyres style formula or chained index, as per MoSPI’s Price
+Statistics Division (PSD) practices. In simple terms, each day’s index = weighted average of
+current fares / baseline fares × 100. We can refresh the base or chain it monthly. The statement
+mentions “index-construction module based on PSD”, meaning we follow MoSPI rules.
+Frequencies: Compute the index daily (for fine tracking), and roll up weekly/monthly averages. We
+may produce separate series for different lead-times or just an overall index.
+No matter the exact math, the output will be a time series of index values. These will be stored in a time-
+series table and served by the dashboard/API.
+Dashboard and API
+We need a web-based interface and a machine API:
+Dashboard: A web app (e.g. React or Python Dash) that visualizes the data. It should show: daily
+APIx trend lines, bar charts of route-level price changes, heatmaps of prices by sector, and graphs
+of lead-time elasticity (i.e. fare vs booking days ahead). We might use JavaScript libraries
+(Chart.js, D3, etc.) or Python frameworks. The RapidSeedbox article notes Python’s ecosystem
+(e.g. Dash, Plotly) is good for quick interactive dashboards. If React/Node is preferred, that works
+too (and the problem hint suggests React/Node in the technology stack).
+REST API: A secure back-end (Flask/FastAPI or Node/Express) exposing endpoints like 
+/api/index?date=YYYY-MM-DD returning the index value, and /api/prices?
+route=DEL-BOM&date=... for raw or aggregated fares. NSO/RBI engineers can query this
+programmatically.
+Documentation: Include user guides and code documentation. Automated tests (unit tests for
+scraping parsers, integration tests for the pipeline) will ensure reliability.
+System Architecture & Compliance
+Overall flow:
+
+The system will be cloud-hosted or server-based. A simplified flow is:
+1. Scheduler (Cron/Workflow): Triggers each scraper (Python scripts) once per day (or at high
+frequency).
+2. Scrapers: Each scraper module launches a headless browser or HTTP client to fetch flights for its
+assigned routes and lead times. Responses are stored raw.
+3. Proxy/Anti-Block Layer: All scraper requests go through a pool of proxies/IPs, with user-agents
+and delays to mimic human browsing. CAPTCHAs, if encountered, are either solved via tools or
+skipped with a retry.
+4. Raw Data Store: A temporary storage (e.g. S3 bucket or raw database) holds the uncleaned
+JSON/HTML responses for logging/debug.
+5. Data Pipeline: A worker process ingests raw data, cleans it, and writes to the Cleaned Database
+(with tables like fares and index ). This can run after each scrape or in streaming fashion.
+6. Index Module: Another routine reads the cleaned fares and computes the APIx series, storing
+results.
+7. Visualization & API Backend: A web server reads from the database to serve the dashboard and
+API.
+This design echoes standard enterprise scraping architectures:
+“Architecture Flow: Data Sources → Crawl Scheduler → Distributed Crawlers → Proxy Network
+→ Parsing Engine → Data Processing Pipeline → Data Warehouse → BI/AI Systems”.
+We should incorporate logging and monitoring at each step. If a scraper fails on a site (due to layout
+change), alerts can notify developers to update the selector or code. The advice to “design for change” is
+crucial: airline websites change layouts often, so the scraper must be maintainable.
+Ethics and Compliance: It is critical to scrape ethically. We will strictly follow each site’s 
+robots.txt , and ensure we do not hammer their servers. The scraper will pause between requests
+(e.g. 2–5 seconds, as recommended), and respect any rate limits. All user-agents will be identified
+clearly (e.g. “CPI-IndexBot/1.0”) and contact info provided if required. By rotating IP addresses and
+timing requests, we minimize load on any one server. In short, we build a “courteous” bot: as one guide
+says, “make sure your crawler behaves like a courteous guest (not a server-crashing bot)”.
+Technology Stack
+Based on the requirements, a likely stack is:
+Web Scraping: Python with Scrapy for high-throughput scraping, and Selenium or Playwright for
+JavaScript-driven flows. We’ll use libraries like Requests/BeautifulSoup for static parts, and
+asyncio or multi-threading to parallelize tasks.
+Proxy Management: A proxy service (with rotating residential/dedicated IPs) to avoid blocks.
+Tools like rotating_proxies middleware (for Scrapy) or services like Multilogin (to manage
+browser profiles) could be used.
+Data Processing: Python with Pandas or SQL for cleaning. PostgreSQL or MySQL for the main
+database. (Alternatively a time-series DB or NoSQL could work, but relational DB is simplest for
+tabular fare data.)
+Index Calculations: Python scripts or stored procedures perform the index math. We’ll follow CPI
+technical notes (e.g. Laspeyres index formula).
+Backend/API: Flask or FastAPI (Python) or Node/Express for serving the API and dashboard
+backend.
+Frontend: A JavaScript framework like React (as suggested by the problem hint) for the
+dashboard UI, using charting libraries (D3.js, Chart.js, Plotly) for graphs.
+Cloud/Deployment: The whole system can run on AWS/Azure/GCP. For example, scrapers could
+run in AWS Lambda or EC2, with data in RDS. Containers (Docker) and orchestration (Kubernetes
+or AWS ECS) ensure easy scaling. Automated tests (e.g. pytest for Python, Selenium tests for UI)
+will be part of CI/CD.
+No single citation covers all of the above, but many industry blogs illustrate similar stacks. For instance,
+one source notes that Scrapy “fires off parallel requests and rotates proxies” making it ideal for flight
+scrapers. Selenium is noted for handling complex interactions (e.g. calendars, CAPTCHA), while
+Playwright offers better performance under heavy bot defenses.
+Validation and Results
+Finally, to ensure our system works, we’ll back-test it against known data. DGCA publishes monthly
+average fares for major routes. We can simulate 30+ days of scraping (even by replaying a known set of
+data or actually running it for a month) and compute our daily/monthly indexes. These should roughly
+track the DGCA figures (if DGCA reports, say, a 5% rise in average fares in June, our index should rise
+similarly). Any large discrepancies will be investigated. The problem explicitly requires demonstrating
+“30 days of back-tested results against DGCA data”, so we will include graphs showing our index vs DGCA
+averages to validate accuracy.
+Why This Matters: In summary, building the APIx system fills a critical gap. It ensures the CPI’s travel
+component is accurate and timely, reflecting what consumers actually pay in the digital age.
+Technically, it involves modern web data engineering: headless scraping of dynamic sites, data pipeline
+best practices, and interactive analytics. By citing best practices for scraping and data pipelines, we
+ensure the design is robust, ethical, and scalable. This solution will give RBI and policymakers a much
+clearer, real-time view of airfare inflation – something that manual methods today simply cannot
+provide.
+Sources: We drew on the official SIH problem statement for requirements and rationale, and on
+technical literature for best practices. For example, industry guides describe headless scraping
+(“Headless browsers… execute JavaScript and wait for content to load”) and emphasize respecting site
+terms. We also reference enterprise scraping architecture texts to structure our pipeline. These
+informed our design of a compliant, reliable system for the Real-time Airfare Price Index.
